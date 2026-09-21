@@ -671,21 +671,12 @@ def run_job(store, job, generate_fn=generate, verify_fn=verify_gradle, artifacts
             candidate_phase,
         )
 
-        # If the model was allowed to change tests, it must actually add coverage.
+        # If the model was allowed to change tests, it must actually add
+        # coverage. Whether it did is checked later, against the real
+        # original-suite count from Stage 5's baseline regression run - not
+        # here, against the configured floor, which can be stale relative to
+        # a suite that has already grown past it.
         selected_tests = [name for name in selected if name in tests]
-
-        report = candidate_result.get("junit") or {}
-
-        if (
-            candidate_result["passed"]
-            and selected_tests
-            and report.get("tests", 0) <= config["minimum_tests"]
-        ):
-            candidate_result["passed"] = False
-            candidate_result["coverage_error"] = (
-                "Editable tests were changed but the JUnit case count "
-                "did not increase"
-            )
 
         initial_candidate_result = candidate_result
         repair_history = []
@@ -896,19 +887,6 @@ def run_job(store, job, generate_fn=generate, verify_fn=verify_gradle, artifacts
                 repaired_phase,
             )
 
-            report = candidate_result.get("junit") or {}
-
-            if (
-                candidate_result["passed"]
-                and selected_tests
-                and report.get("tests", 0) <= config["minimum_tests"]
-            ):
-                candidate_result["passed"] = False
-                candidate_result["coverage_error"] = (
-                    "Editable tests were changed but the JUnit case count "
-                    "did not increase"
-                )
-
             repair_result = {
                 "passed": candidate_result["passed"],
                 "repair_number": repair_number,
@@ -1019,6 +997,85 @@ def run_job(store, job, generate_fn=generate, verify_fn=verify_gradle, artifacts
                 "Candidate breaks the original test suite",
             )
             return
+
+        # If the model was allowed to change tests, it must have actually
+        # added coverage - compared against the real original-suite count
+        # that Stage 5 just measured (reverted test files, same production
+        # code), not the possibly-stale configured minimum_tests floor. A
+        # repository whose suite already exceeds that floor must still see
+        # a genuine increase; missing or unusable count evidence fails
+        # closed rather than silently falling back to the configured
+        # minimum.
+        if selected_tests:
+            baseline_report = regression_result.get("junit") or {}
+            candidate_report = candidate_result.get("junit") or {}
+            baseline_count = baseline_report.get("tests")
+            candidate_count = candidate_report.get("tests")
+
+            if not isinstance(baseline_count, int) or not isinstance(candidate_count, int):
+                result = {
+                    "passed": False,
+                    "stage": "coverage-check",
+                    "selected_files": selected,
+                    "candidate_verification": candidate_result,
+                    "baseline_verification": regression_result,
+                    "coverage_error": (
+                        "Missing or unusable JUnit case-count evidence; "
+                        "cannot verify added coverage"
+                    ),
+                }
+
+                (attempt / "result.json").write_text(
+                    json.dumps(result, indent=2),
+                    encoding="utf-8",
+                )
+
+                store.attempt(
+                    job_id,
+                    3,
+                    phase="failed",
+                    result=json.dumps(result),
+                )
+
+                store.status(
+                    job_id,
+                    "failed",
+                    "Missing or unusable test-count evidence for the added-coverage check",
+                )
+                return
+
+            if candidate_count <= baseline_count:
+                result = {
+                    "passed": False,
+                    "stage": "coverage-check",
+                    "selected_files": selected,
+                    "candidate_verification": candidate_result,
+                    "baseline_verification": regression_result,
+                    "coverage_error": (
+                        f"Editable tests were changed but the JUnit case count "
+                        f"did not increase over the original suite "
+                        f"({candidate_count} vs {baseline_count})"
+                    ),
+                }
+
+                (attempt / "result.json").write_text(
+                    json.dumps(result, indent=2),
+                    encoding="utf-8",
+                )
+
+                store.attempt(
+                    job_id,
+                    3,
+                    phase="failed",
+                    result=json.dumps(result),
+                )
+
+                store.status(
+                    job_id,
+                    "failed",
+                    "Editable tests were changed but no new cases were added",
+                )
+                return
 
         # ----- Stage 6: deterministic review -----
         patch = git(

@@ -139,8 +139,8 @@ class RepoExecuteWorkflowTests(unittest.TestCase):
         job_id, result, prompts = self.run_case(
             answers=[SELECTION, PLAN, GOOD_PROD, GOOD_TEST],
             verify_results=[
-                {'passed': True, 'junit': {'tests': 13, 'failures': 0}},  # candidate
-                {'passed': True},  # baseline regression against the original test
+                {'passed': True, 'junit': {'tests': 13, 'failures': 0}},  # candidate: 13
+                {'passed': True, 'junit': {'tests': 12}},  # baseline: original 12
             ],
         )
         self.assertEqual(result['status'], 'succeeded', result.get('error'))
@@ -191,7 +191,7 @@ class RepoExecuteWorkflowTests(unittest.TestCase):
                 {'passed': False, 'repairable': True,
                  'junit': {'diagnostics': 'expected hello-world but was --hello-world--'}},
                 {'passed': True, 'junit': {'tests': 13, 'failures': 0}},
-                {'passed': True},
+                {'passed': True, 'junit': {'tests': 12}},
             ],
         )
         self.assertEqual(result['status'], 'succeeded', result.get('error'))
@@ -258,17 +258,84 @@ class RepoExecuteWorkflowTests(unittest.TestCase):
             self.spec['base_commit'],
         )
 
-    def test_coverage_check_rejects_an_edited_test_with_no_new_cases(self):
-        # The test file was edited (so it differs from the committed version)
-        # but the fake verifier reports the same case count as before - this
-        # must be treated as insufficient, not as a pass.
+    def same_count_test_edit(self):
+        """A test-file edit that changes content but adds zero new @Test
+        cases relative to whatever is currently committed at 'main' for
+        TEST_TARGET - the exact shape of the confirmed defect reproduction."""
+        original = git(self.repo, 'show', 'main:' + TEST_TARGET, raw=True)
+        edited = original.replace('"Hello World"', '"Hello World!"')
+        assert edited != original
+        assert edited.count('@Test') == original.count('@Test')
+        return edited
+
+    def add_extra_baseline_test(self):
+        """Commit a 13th baseline test on top of the fixture WITHOUT raising
+        minimum_tests (still 12) - reproducing the reported defect scenario
+        where the real original suite has already grown past the configured
+        floor."""
+        path = self.repo / 'src/test/java/lab/TextStatsTest.java'
+        content = path.read_text(encoding='utf-8')
+        content = content.replace(
+            '    @Test void nullInput()',
+            '    @Test void anotherCase() { assertEquals(1, TextStats.countWords("x")); }\n'
+            '    @Test void nullInput()',
+        )
+        path.write_text(content, encoding='utf-8')
+        git(self.repo, 'add', '.')
+        git(self.repo, '-c', 'user.name=Test', '-c', 'user.email=test@localhost',
+            'commit', '-m', 'Add a 13th baseline test without raising minimum_tests')
+        self.spec = prepare_spec(self.repo, 'main', TASK)
+
+    def test_p2_reproduction_stale_minimum_no_longer_allows_a_no_op_test_edit(self):
+        # Regression test for a confirmed defect: minimum_tests (12) can be
+        # stale relative to the real original suite (13, after this commit).
+        # A candidate that touches the test file without adding cases must
+        # be rejected even though 13 > minimum_tests - comparison must be
+        # against the actual baseline count, not the configured floor.
+        self.add_extra_baseline_test()
         _, result, prompts = self.run_case(
-            answers=[SELECTION, PLAN, GOOD_PROD, GOOD_TEST],
+            answers=[SELECTION, PLAN, GOOD_PROD, self.same_count_test_edit()],
             verify_results=[
-                {'passed': True, 'junit': {'tests': 12, 'failures': 0}},  # not increased
+                {'passed': True, 'junit': {'tests': 13, 'failures': 0}},  # candidate: 13
+                {'passed': True, 'junit': {'tests': 13}},  # baseline: also 13 - no increase
             ],
         )
         self.assertEqual(result['status'], 'failed')
+        self.assertIn('no new cases were added', result['error'])
+
+    def test_repair_cannot_bypass_the_added_coverage_comparison(self):
+        # A repaired candidate is held to the same real-baseline comparison
+        # as an unrepaired one - a repair must not exempt it.
+        self.add_extra_baseline_test()
+        _, result, prompts = self.run_case(
+            answers=[
+                SELECTION, PLAN, GOOD_PROD, self.same_count_test_edit(),
+                '{"file": "' + PROD_TARGET + '", "reason": "Production logic is wrong"}',
+                GOOD_PROD_REPAIRED,
+            ],
+            verify_results=[
+                {'passed': False, 'repairable': True,
+                 'junit': {'diagnostics': 'expected hello-world but was --hello-world--'}},
+                {'passed': True, 'junit': {'tests': 13, 'failures': 0}},  # repaired: 13
+                {'passed': True, 'junit': {'tests': 13}},  # baseline: also 13 - no increase
+            ],
+        )
+        self.assertEqual(result['status'], 'failed')
+        self.assertIn('no new cases were added', result['error'])
+
+    def test_missing_baseline_count_evidence_fails_closed(self):
+        # If the baseline regression run doesn't report a usable case count,
+        # the workflow must fail rather than silently fall back to comparing
+        # against the configured minimum_tests floor.
+        _, result, prompts = self.run_case(
+            answers=[SELECTION, PLAN, GOOD_PROD, GOOD_TEST],
+            verify_results=[
+                {'passed': True, 'junit': {'tests': 13, 'failures': 0}},  # candidate: 13
+                {'passed': True},  # baseline: no junit data at all
+            ],
+        )
+        self.assertEqual(result['status'], 'failed')
+        self.assertIn('Missing or unusable', result['error'])
 
 
 if __name__ == '__main__':

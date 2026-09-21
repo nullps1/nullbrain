@@ -1,7 +1,9 @@
 # NullCode project state
 
-**Updated:** 2026-09-21, Milestone 7C-2 implementation.
-**Implementation branch:** `codex/milestone-7c2`
+**Updated:** 2026-09-21, Milestone 7C-2 implementation and Linux review.
+**Implementation commits:** `34fc203` (7C-2), then the Linux-review hardening
+commit on top of it. Identified by commit rather than by branch, because the
+development branches are deleted once merged.
 **Implementation base:** `4013fbd` (original-suite coverage-gate fix).
 
 This is the authoritative handoff document. Read it before changing anything.

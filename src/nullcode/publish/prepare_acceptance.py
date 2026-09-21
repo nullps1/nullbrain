@@ -2,8 +2,11 @@
 import argparse
 import json
 import pathlib
-from gradle_workflow import inspect
-from repo_workflow import git
+from nullcode.gradle.gradle_workflow import inspect
+from nullcode.repo.repo_workflow import git
+
+# Source-controlled acceptance assets shipped as package data.
+ASSETS = pathlib.Path(__file__).resolve().parent.parent / "acceptance"
 
 
 def main():
@@ -28,7 +31,7 @@ def main():
         repo.as_posix(), destination.as_posix())
     git(destination, "checkout", "-b", "acceptance/textstats-v1", commit)
     git(destination, "remote", "remove", "origin")
-    assets = pathlib.Path(__file__).parent / "acceptance"
+    assets = ASSETS
     additions = {".nullcode-acceptance.json": assets / "contract.json",
                  "src/test/java/lab/TextStatsAcceptanceTest.java": assets / "TextStatsAcceptanceTest.java"}
     for name, source in additions.items():

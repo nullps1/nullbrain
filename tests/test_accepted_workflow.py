@@ -1,18 +1,14 @@
 """Real Git/SQLite integration tests; inference and Docker verification are simulated."""
 import json
 import pathlib
-import sys
 import unittest
 import uuid
 import copy
 
-# The uploaded archive omits this existing dependency. Use the original local
-# workspace copy for development only; installed Pi runs use its own module.
-if not (pathlib.Path(__file__).parent / "validate_java.py").exists():
-    sys.path.append(str(pathlib.Path(__file__).parent.parent / "nullcode"))
-
-import accepted_workflow as a
-from java_workflow import Store
+import nullcode.repo.accepted_workflow as a
+from nullcode.core.java_workflow import Store
+from nullcode.gradle.gradle_workflow import PROFILE as GRADLE_PROFILE
+from nullcode.publish.prepare_acceptance import ASSETS as ACCEPTANCE_ASSETS
 
 BASE_SOURCE = '''package lab;
 public class TextStats {
@@ -114,14 +110,13 @@ class AcceptedTests(unittest.TestCase):
         self.store = Store(self.root / "db")
         self.target = "src/main/java/lab/TextStats.java"
         self.test = "src/test/java/lab/TextStatsAcceptanceTest.java"
-        assets = pathlib.Path(__file__).parent
         files = {self.target: BASE_SOURCE,
-                 self.test: (assets / "acceptance/TextStatsAcceptanceTest.java").read_text(),
+                 self.test: (ACCEPTANCE_ASSETS / "TextStatsAcceptanceTest.java").read_text(),
                  ".nullcode.json": json.dumps({"profile": "gradle-junit-v1", "editable_files": [self.target],
                                                "editable_test_files": [self.test], "minimum_tests": 12}),
-                 ".nullcode-acceptance.json": (assets / "acceptance/contract.json").read_text()}
+                 ".nullcode-acceptance.json": (ACCEPTANCE_ASSETS / "contract.json").read_text()}
         for name in ("build.gradle", "settings.gradle", "gradle.properties"):
-            files[name] = (assets / "gradle_profile" / name).read_text()
+            files[name] = (GRADLE_PROFILE / name).read_text()
         for name, text in files.items():
             p = self.repo / name
             p.parent.mkdir(parents=True, exist_ok=True)

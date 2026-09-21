@@ -2,10 +2,10 @@ import json
 import pathlib
 import unittest
 import uuid
-from create_fixture import create
-from java_workflow import Store
-from repo_workflow import git, prepare_spec, run_repo_job
-from review_java import REVIEW_DEMO, review_source
+from nullcode.fixtures.create_fixture import create
+from nullcode.core.java_workflow import Store
+from nullcode.repo.repo_workflow import git, prepare_spec, run_repo_job
+from nullcode.core.review_java import REVIEW_DEMO, review_source
 
 CLEAN = '''public class Numbers {
     public static int max(int[] values) {

@@ -4,7 +4,7 @@ import json
 import pathlib
 import subprocess
 
-from java_workflow import JOBS, generate
+from nullcode.core.java_workflow import JOBS, generate
 
 
 PROFILE = "repo-plan-v1"

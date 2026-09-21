@@ -1,0 +1,31 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "nullcode"
+version = "0.1.0"
+description = "NullCode: the coding-workflow subsystem of the NullBrain agent platform"
+requires-python = ">=3.11"
+# The workflow layer deliberately uses only the Python standard library. Its
+# external dependencies are host services (Docker, Git, the Rust controller,
+# the GitHub CLI), not importable packages.
+dependencies = []
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+# Source-controlled assets read at runtime by the workflow code.
+"nullcode.gradle" = ["gradle_profile/*"]
+"nullcode" = ["acceptance/*"]
+
+[tool.pytest.ini_options]
+# Keeps imports deterministic without requiring an editable install, and keeps
+# collection away from the retained pre-install snapshots under checkpoints/.
+pythonpath = ["src"]
+testpaths = ["tests"]
+norecursedirs = ["checkpoints", "rust", ".git", "*.egg-info", "test-results"]

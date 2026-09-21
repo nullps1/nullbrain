@@ -37,6 +37,11 @@ __pycache__/
 *.py[cod]
 .venv/
 venv/
+dist/
+.pytest_cache/
+*.egg-info/
+# Local test scratch directories created by the unittest suite
+test-results/
 
 # Java/build outputs
 target/

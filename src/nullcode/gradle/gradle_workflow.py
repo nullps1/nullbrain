@@ -6,9 +6,9 @@ import re
 import subprocess
 import uuid
 import xml.etree.ElementTree as ET
-from java_workflow import JOBS, clip, command, generate
-from repo_workflow import git
-from review_java import review_source
+from nullcode.core.java_workflow import JOBS, clip, command, generate
+from nullcode.repo.repo_workflow import git
+from nullcode.core.review_java import review_source
 
 PROFILE = pathlib.Path(__file__).parent / 'gradle_profile'
 IMAGE = 'nullcode-gradle:8.14.3-jdk21'

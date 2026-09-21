@@ -46,6 +46,18 @@ base commit. Other remote base branches are not supported by this publisher.
 - Matches `plan.json` with the final stored plan. It checks each selected
   file's source hash and the full diff hash against its passing targeted
   review, and reruns the current targeted rules.
+- Re-derives the approved test scope itself. The shared Gradle `inspect()`
+  validates `editable_files` only, so the publisher applies the same
+  `editable_test_files` rules the 7B producer's `prepare_spec` applies: 1 to 8
+  unique committed `src/test/java/*.java` paths. Trusting the committed field
+  would leave the publisher's approved set weaker than the producer's.
+
+Committed text is read through `_text()`, which folds a lone CR as well as
+CRLF. The producer hashed sources it read through Python text mode, which
+applies full universal-newline translation, so reading committed bytes with
+`git show` alone made a stray CR fail an otherwise honest review record.
+Committed content stays pinned independently by the binary snapshot hashes,
+so this normalization does not widen what may be published.
 
 The PR body includes the plan summary, task, per-file review status,
 candidate/original executed-test counts, image and commit identities, and
@@ -69,7 +81,28 @@ Verified on Windows on 2026-09-21 with `PYTHONPATH=src`:
 | Python compilation of publisher modules and new tests | Passed |
 | `git diff --check` | Passed |
 
-`tests/test_repo_execute_publish.py` adds eight tests with subcases. They
+Re-verified on Linux (x86-64, Python 3.11.15, Git 2.43) on 2026-09-21, after
+the two hardening changes above:
+
+| Check | Result |
+| --- | --- |
+| Full Python suite (`python3 -m unittest discover -s tests`) | 105 passed, 17.805 seconds |
+| Publisher CLI `--help` | Passed |
+| Python compilation of publisher modules and tests | Passed |
+| `git diff --check` | Passed |
+
+Each hardening change was confirmed to be load-bearing by reverting it alone
+and observing its test fail: without the scope check the doctored
+configurations publish, and without `_text()` the CR case is rejected with
+`Review hashes or findings do not match`.
+
+The wall-clock difference from the Windows run is sandbox overhead, not a
+behavioral difference. Live Ollama, Docker/Gradle, GitHub delivery, and Pi
+memory/temperature were **not** exercised on Linux either: no Ollama is
+installed in that environment and no workflow ran against a live model. Rust
+remains unchanged and untested in both sessions.
+
+`tests/test_repo_execute_publish.py` adds ten tests with subcases. They
 exercise the actual 7B producer and publisher using real temporary Git and
 SQLite state with canned inference and verification. Coverage includes:
 
@@ -80,6 +113,10 @@ SQLite state with canned inference and verification. Coverage includes:
 - Altered metadata, plan, HEAD, dirty checkout, duplicate final records,
   and an extra unauthorized file in the task commit.
 - Draft-only delivery and rejection when remote main advances during publication.
+- Absent, empty, oversized, duplicated, non-test and uncommitted
+  `editable_test_files` configurations, plus the unmodified one still publishing.
+- A committed source containing a lone CR, which must match the producer's
+  review hash rather than being rejected.
 
 GitHub delivery is mocked. This milestone has not been deployed or exercised
 against live Ollama, Docker/Gradle, or GitHub. Evidence is local, unsigned

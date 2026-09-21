@@ -5,15 +5,16 @@ import unittest
 from unittest.mock import patch
 
 import test_repo_execute_workflow as workflow
+from nullcode.publish import repo_execute_publish
 from nullcode.publish.publish_workflow import prepare, deliver
 from nullcode.repo.repo_workflow import git
 
 
 class RepoExecutePublishTests(unittest.TestCase):
-    def make_workflow(self, repaired=False, three_files=False):
+    def make_workflow(self, repaired=False, three_files=False, production=workflow.GOOD_PROD):
         harness = workflow.RepoExecuteWorkflowTests()
         harness.setUp()
-        answers = [workflow.SELECTION, workflow.PLAN, workflow.GOOD_PROD, workflow.GOOD_TEST]
+        answers = [workflow.SELECTION, workflow.PLAN, production, workflow.GOOD_TEST]
         if three_files:
             extra = 'src/main/java/lab/TextStats.java'
             selection = json.loads(workflow.SELECTION)
@@ -22,7 +23,7 @@ class RepoExecutePublishTests(unittest.TestCase):
             plan['files'].append({'path': extra, 'reason': 'Document retained word counting'})
             source = (harness.repo / extra).read_text().replace(
                 'public class TextStats', '// Whitespace-separated word counting.\npublic class TextStats')
-            answers = [json.dumps(selection), json.dumps(plan), workflow.GOOD_PROD,
+            answers = [json.dumps(selection), json.dumps(plan), production,
                        source, workflow.GOOD_TEST]
 
         def evidence(count):
@@ -188,6 +189,53 @@ class RepoExecutePublishTests(unittest.TestCase):
             deliver(plan, 'owner/repo', moving_api,
                     lambda *args: plan['commit'] + '\tref',
                     lambda args: self.fail('must not create PR'))
+
+    def test_publisher_revalidates_the_approved_test_scope(self):
+        """inspect() validates editable_files only, so the publisher must check
+        editable_test_files itself rather than trusting the committed field."""
+        self.make_workflow()
+        real_inspect = repo_execute_publish.inspect
+
+        def doctored(value):
+            def inspect(checkout, commit):
+                paths, config = real_inspect(checkout, commit)
+                config = dict(config)
+                config.pop('editable_test_files', None)
+                if value is not None:
+                    config['editable_test_files'] = value
+                return paths, config
+            return inspect
+
+        rejected = [
+            None,                                              # absent
+            [],                                                # empty
+            workflow.TEST_TARGET,                              # not a list
+            [workflow.PROD_TARGET],                            # production, not a test
+            ['src/test/java/lab/Absent.java'],                 # not committed
+            [workflow.TEST_TARGET, workflow.TEST_TARGET],      # duplicated
+            ['build.gradle'],                                  # protected build config
+            [workflow.TEST_TARGET] + [f'src/test/java/lab/T{n}.java' for n in range(8)],
+        ]
+        for value in rejected:
+            with self.subTest(editable_test_files=value):
+                with patch.object(repo_execute_publish, 'inspect', doctored(value)):
+                    with self.assertRaises(ValueError):
+                        prepare(self.job, self.artifacts)
+        # The unmodified configuration still publishes.
+        with patch.object(repo_execute_publish, 'inspect', doctored([workflow.TEST_TARGET])):
+            self.assertEqual(prepare(self.job, self.artifacts)['commit'],
+                             git(self.checkout, 'rev-parse', 'HEAD'))
+
+    def test_lone_carriage_return_matches_the_producer_review_hash(self):
+        """The producer hashes sources read through Python text mode, which folds
+        a lone CR; reading committed bytes must normalize the same way."""
+        production = workflow.GOOD_PROD.replace(
+            'public class Slugs {', '// Locale-independent.\rpublic class Slugs {')
+        self.make_workflow(production=production)
+        self.assertIn(b'\r', git(self.checkout, 'show', 'HEAD:' + workflow.PROD_TARGET,
+                                 binary=True))
+        plan = prepare(self.job, self.artifacts)
+        self.assertIn(workflow.PROD_TARGET, plan['body'])
 
 
 if __name__ == '__main__':

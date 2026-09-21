@@ -18,6 +18,14 @@ milestone 6 are ordered by increment, not by date.
 - Preserve existing draft-only delivery and preview behavior. Scope proposals
   (7C-1) remain unimplemented. See [7C-2](milestones/MILESTONE-7C-2.md) for test
   coverage and live-deployment limits.
+- Harden the new validator after a Linux review: re-derive the approved
+  `editable_test_files` scope with the producer's own rules instead of trusting
+  the committed field, and fold a lone CR when reading committed text so a
+  stray CR no longer fails a matching review hash. Suite: 105 tests.
+- Record Linux validation of 7C-2. Live Ollama, Docker/Gradle, GitHub and Pi
+  checks remain outstanding.
+- Add [7C-1 scope proposals](milestones/PROPOSAL-7C-1.md) as a design proposal.
+  Nothing is implemented.
 
 ### Repository reorganization — 2026-09-21
 

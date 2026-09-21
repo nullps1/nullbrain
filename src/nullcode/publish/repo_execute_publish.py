@@ -17,6 +17,18 @@ def _hash(data):
     return hashlib.sha256(data).hexdigest()
 
 
+def _text(checkout, commit, name):
+    """Read committed text the way the producer read it from the working tree.
+
+    ``git(..., raw=True)`` folds CRLF only, but the producer hashed sources it
+    read through Python text mode, which also folds a lone CR. Matching that
+    normalization keeps a stray CR from failing an otherwise honest review
+    record. Committed bytes stay pinned separately by the binary snapshot
+    hashes, so this never widens what content can be published.
+    """
+    return git(checkout, 'show', commit + ':' + name, raw=True).replace('\r', '\n')
+
+
 def _verification(record, minimum, label):
     if not isinstance(record, dict) or record.get('passed') is not True:
         raise ValueError('Missing successful ' + label + ' verification')
@@ -75,7 +87,18 @@ def prepare_repo_execute(job, artifacts):
     if committed_paths != paths or committed_config != config:
         raise ValueError('Committed project changed protected paths or configuration')
     selected = metadata.get('editable_files')
-    approved_tests = config.get('editable_test_files') or []
+    # Re-derive the approved test scope instead of trusting the field: the
+    # shared Gradle inspect() validates editable_files only, so accepting
+    # editable_test_files as written would leave the publisher's approved set
+    # weaker than the producer's own prepare_spec check.
+    approved_tests = config.get('editable_test_files')
+    if (not isinstance(approved_tests, list) or not approved_tests
+            or len(approved_tests) > 8
+            or len(set(approved_tests)) != len(approved_tests)
+            or not all(isinstance(name, str) and name in paths
+                       and name.startswith('src/test/java/') and name.endswith('.java')
+                       for name in approved_tests)):
+        raise ValueError('Invalid approved editable_test_files configuration')
     approved = config['editable_files'] + approved_tests
     if (not isinstance(selected, list) or not all(isinstance(p, str) for p in selected)
             or not 2 <= len(selected) <= 3 or len(set(selected)) != len(selected)
@@ -118,7 +141,7 @@ def prepare_repo_execute(job, artifacts):
     if review.get('status') != 'passed' or set(reviews) != set(selected):
         raise ValueError('Missing per-file targeted review')
     for name in selected:
-        source = git(checkout, 'show', commit + ':' + name, raw=True)
+        source = _text(checkout, commit, name)
         evidence = reviews[name]
         if (evidence.get('status') != 'passed' or evidence.get('findings') != []
                 or evidence.get('source_sha256') != _hash(source.encode())

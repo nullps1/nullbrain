@@ -9,6 +9,30 @@ milestone 6 are ordered by increment, not by date.
 
 ## Unreleased
 
+### Milestone 7B hardening: behavioral-novelty validation — 2026-09-21
+
+- Add a behavioral-delta counterfactual stage to `repo-execute-v1`, between the
+  added-coverage comparison and targeted review. The candidate test suite is
+  run against pinned-base production; a suite that fully passes there proves
+  nothing about the production edit and is rejected.
+- Construct the hybrid state deterministically from the base commit with only
+  approved candidate test sources overlaid, and pin it to the verifier's own
+  snapshot hashes so candidate production cannot enter it.
+- Treat a test-compilation failure caused by API absent from the base as
+  distinguishing evidence, decided from the compiler output; everything the
+  evidence does not explain is infrastructure failure and fails closed.
+- Add the terminal state `rejected-no-behavioral-delta`, distinct from the
+  generic `failed` state and recorded with `finished_at` like other terminal
+  states. Nothing is committed or publishable from it.
+- Record `behavioral-delta.json` and a `behavioral-delta-verification/`
+  directory (manifest, hashes, image id, compile and test logs, JUnit summary,
+  classification, diagnostic) as auditable evidence.
+- Encode Workflow 26 as an automated regression fixture, plus genuine-change,
+  new-API and infrastructure-failure fixtures. Existing gates, scopes, floors
+  and the repair budget are unchanged. Suite: 133 tests. Live Pi smoke test
+  still outstanding. See
+  [7B hardening](milestones/MILESTONE-7B-HARDENING.md).
+
 ### Milestone 7C-2 — 2026-09-21
 
 - Add profile-specific validation and explicit draft-PR publishing for

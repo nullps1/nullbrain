@@ -7,10 +7,19 @@ import uuid
 from nullcode.core.java_workflow import Store
 from nullcode.fixtures.create_gradle_fixture import create
 from nullcode.repo.repo_execute_workflow import (
+    DISTINGUISHING_API_COMPILE_FAILURE,
+    DISTINGUISHING_TEST_FAILURE,
+    INFRASTRUCTURE_FAILURE,
+    NO_BEHAVIORAL_DELTA,
+    REJECTED_NO_BEHAVIORAL_DELTA,
     candidate_repairable,
+    classify_behavioral_delta,
+    distinguishing_compile_failure,
     edit_prompt,
     executed_test_count,
+    hybrid_overlay_files,
     insufficient_test_count,
+    javac_errors,
     prepare_spec,
     run_job,
     verification_diagnostic,
@@ -127,6 +136,48 @@ SHORT_COUNT = {
     'junit': {'tests': 5, 'failures': 0, 'skipped': 0, 'diagnostics': ''},
 }
 
+# ------------------------------------------------------------------
+# Hybrid counterfactual evidence: pinned-base production + candidate tests.
+# ------------------------------------------------------------------
+
+# The distinguishing signal - the candidate suite fails against the base, so
+# it genuinely exercises behavior the base does not satisfy.
+HYBRID_DISTINGUISHING = {
+    'passed': False,
+    'repairable': True,
+    'tests': {'exit_code': 1},
+    'junit': {
+        'tests': 13, 'failures': 1, 'skipped': 0,
+        'diagnostics': 'leadingTrailingHyphens: expected: <hello-world> but was: <--hello-world-->',
+    },
+}
+
+# Workflow 26's shape - the candidate suite ALSO passes against the base, so
+# nothing proves the production edit was needed.
+HYBRID_NO_DELTA = {
+    'passed': True,
+    'junit': {'tests': 13, 'failures': 0, 'skipped': 0},
+}
+
+# A candidate test calling a method the pinned base does not declare. This is
+# source incompatibility, not a broken build environment.
+HYBRID_API_COMPILE_LOG = (
+    '> Task :compileJava\n'
+    '> Task :compileTestJava FAILED\n'
+    '/work/project/src/test/java/lab/SlugsTest.java:12: error: cannot find symbol\n'
+    '    @Test void unicode() { assertEquals("aeo", Slugs.slugifyUnicode("aeo")); }\n'
+    '                                                    ^\n'
+    '  symbol:   method slugifyUnicode(String)\n'
+    '  location: class lab.Slugs\n'
+    '1 error\n'
+    'FAILURE: Build failed with an exception.\n'
+)
+
+HYBRID_API_COMPILE_FAILURE = {
+    'passed': False,
+    'compile': {'exit_code': 1, 'timed_out': False, 'log': HYBRID_API_COMPILE_LOG},
+}
+
 REPAIR_TEST_FILE = '{"file": "' + TEST_TARGET + '", "reason": "Baseline tests were dropped"}'
 REPAIR_PROD_FILE = '{"file": "' + PROD_TARGET + '", "reason": "Blame the implementation"}'
 
@@ -143,7 +194,9 @@ def add_editable_test_files(repo, test_files):
         'commit', '-m', 'Declare editable test files for repo-execute-v1')
 
 
-class RepoExecuteWorkflowTests(unittest.TestCase):
+class ExecuteWorkflowHarness(unittest.TestCase):
+    """Shared fixture and canned-model/canned-verifier driver."""
+
     def setUp(self):
         self.root = pathlib.Path(__file__).resolve().parent / 'test-results' / uuid.uuid4().hex
         self.root.mkdir(parents=True)
@@ -152,10 +205,12 @@ class RepoExecuteWorkflowTests(unittest.TestCase):
         self.store = Store(self.root / 'db')
         self.spec = prepare_spec(self.repo, 'main', TASK)
         self.observed_test_sources = []
+        self.observed_production_sources = []
 
     def run_case(self, answers, verify_results):
         job_id = self.store.submit(repo_spec=self.spec)
         self.observed_test_sources = []
+        self.observed_production_sources = []
         remaining_answers = list(answers)
         pending_verify = iter(verify_results)
         prompts = []
@@ -175,6 +230,11 @@ class RepoExecuteWorkflowTests(unittest.TestCase):
             self.observed_test_sources.append(
                 (checkout / TEST_TARGET).read_text(encoding='utf-8')
             )
+            # Same for production: Stage 6's hybrid must see BASE production,
+            # never the candidate's.
+            self.observed_production_sources.append(
+                (checkout / PROD_TARGET).read_text(encoding='utf-8')
+            )
             result = dict(next(pending_verify))
             result.setdefault('repairable', False)
             # setdefault, not update: a case may inject its own infrastructure
@@ -186,11 +246,19 @@ class RepoExecuteWorkflowTests(unittest.TestCase):
                 p: hashlib.sha256((checkout / p).read_bytes()).hexdigest()
                 for p in paths
             }
+            # Simulate a verifier whose snapshot shows candidate production
+            # inside the hybrid counterfactual state.
+            if result.pop('leak_candidate_production', False):
+                result['snapshot_sha256'][PROD_TARGET] = hashlib.sha256(
+                    b'candidate production leaked into the hybrid'
+                ).hexdigest()
             return result
 
         run_job(self.store, self.store.claim(), generate, verify, self.root / 'jobs')
         return job_id, self.store.show(job_id), prompts
 
+
+class RepoExecuteWorkflowTests(ExecuteWorkflowHarness):
     def test_prepare_spec_requires_editable_test_files_configured(self):
         bare = create(self.root / 'bare-source')
         with self.assertRaisesRegex(ValueError, 'editable_test_files'):
@@ -202,6 +270,7 @@ class RepoExecuteWorkflowTests(unittest.TestCase):
             verify_results=[
                 {'passed': True, 'junit': {'tests': 13, 'failures': 0}},  # candidate: 13
                 {'passed': True, 'junit': {'tests': 12}},  # baseline: original 12
+                HYBRID_DISTINGUISHING,  # hybrid: candidate tests fail on base
             ],
         )
         self.assertEqual(result['status'], 'succeeded', result.get('error'))
@@ -253,6 +322,7 @@ class RepoExecuteWorkflowTests(unittest.TestCase):
                  'junit': {'diagnostics': 'expected hello-world but was --hello-world--'}},
                 {'passed': True, 'junit': {'tests': 13, 'failures': 0}},
                 {'passed': True, 'junit': {'tests': 12}},
+                HYBRID_DISTINGUISHING,
             ],
         )
         self.assertEqual(result['status'], 'succeeded', result.get('error'))
@@ -417,6 +487,7 @@ class RepoExecuteWorkflowTests(unittest.TestCase):
                 SHORT_COUNT,
                 {'passed': True, 'junit': {'tests': 13, 'failures': 0}},
                 {'passed': True, 'junit': {'tests': 12}},
+                HYBRID_DISTINGUISHING,
             ],
         )
         self.assertEqual(result['status'], 'succeeded', result.get('error'))
@@ -479,6 +550,7 @@ class RepoExecuteWorkflowTests(unittest.TestCase):
                            'diagnostics': 'expected hello-world but was --hello-world--'}},
                 {'passed': True, 'junit': {'tests': 13, 'failures': 0}},
                 {'passed': True, 'junit': {'tests': 12}},
+                HYBRID_DISTINGUISHING,
             ],
         )
         self.assertEqual(result['status'], 'succeeded', result.get('error'))
@@ -581,16 +653,23 @@ class RepoExecuteWorkflowTests(unittest.TestCase):
                 SHORT_COUNT,
                 {'passed': True, 'junit': {'tests': 13, 'failures': 0}},
                 {'passed': True, 'junit': {'tests': 12}},
+                HYBRID_DISTINGUISHING,
             ],
         )
         self.assertEqual(result['status'], 'succeeded', result.get('error'))
 
         original_test = git(self.repo, 'show', 'main:' + TEST_TARGET, raw=True)
-        self.assertEqual(len(self.observed_test_sources), 3)
+        original_prod = git(self.repo, 'show', 'main:' + PROD_TARGET, raw=True)
+        self.assertEqual(len(self.observed_test_sources), 4)
         self.assertEqual(self.observed_test_sources[0], REDUCED_TEST)
         self.assertEqual(self.observed_test_sources[1], GOOD_TEST)
         # Stage 5 discarded the repaired suite and injected real base bytes.
         self.assertEqual(self.observed_test_sources[2], original_test)
+        # Stage 6 does the inverse: repaired candidate tests against pinned
+        # base production.
+        self.assertEqual(self.observed_test_sources[3], GOOD_TEST)
+        self.assertEqual(self.observed_production_sources[1], GOOD_PROD)
+        self.assertEqual(self.observed_production_sources[3], original_prod)
 
         workdir = self.root / 'jobs' / f'workflow-{job_id}'
         self.assertTrue(
@@ -724,6 +803,488 @@ class RepoExecuteWorkflowTests(unittest.TestCase):
         # The instruction must not eat the controller budget: a realistic
         # 7B-sized test edit still needs real headroom under 2000 bytes.
         self.assertLess(len(test_prompt.encode()), 1800)
+
+
+# ------------------------------------------------------------------
+# Workflow 26 regression fixture
+# ------------------------------------------------------------------
+# Pinned base 6749c9b46552147e33c14a73b80b699924667b46 ALREADY trimmed
+# leading and trailing hyphens. Candidate commit
+# 4ed2d63c1b4f7d750aadf80c3d66b389126b064b claimed to add that support and
+# shipped a file that was behaviorally identical to the base and had only
+# lost its indentation, plus a test the base already satisfied. Every gate
+# that existed at the time passed it.
+WORKFLOW_26_BASE_PROD = '''package lab;
+import java.util.Locale;
+public class Slugs {
+    public static String slugify(String text) {
+        if (text == null) {
+            throw new IllegalArgumentException("Input text cannot be null");
+        }
+        String lowercased = text.toLowerCase(Locale.ROOT);
+        String normalized = lowercased.replaceAll("[^a-z0-9]+", "-");
+        return normalized.replaceAll("^-*|-*$", "");
+    }
+}
+'''
+
+WORKFLOW_26_PROD = '''package lab;
+import java.util.Locale;
+public class Slugs {
+public static String slugify(String text) {
+if (text == null) {
+throw new IllegalArgumentException("Input text cannot be null");
+}
+String lowercased = text.toLowerCase(Locale.ROOT);
+String normalized = lowercased.replaceAll("[^a-z0-9]+", "-");
+return normalized.replaceAll("^-*|-*$", "");
+}
+}
+'''
+
+# The genuine counterpart: a base that does NOT trim, and a candidate that
+# adds the trimming its new test asserts.
+GENUINE_BASE_PROD = '''package lab;
+import java.util.Locale;
+public class Slugs {
+    public static String slugify(String text) {
+        if (text == null) {
+            throw new IllegalArgumentException("Input text cannot be null");
+        }
+        return text.toLowerCase(Locale.ROOT).replaceAll("[^a-z0-9]+", "-");
+    }
+}
+'''
+
+# A candidate introducing a brand-new API its tests call. The pinned base
+# does not declare it, so the hybrid cannot even compile the test sources.
+NEW_API_PROD = '''package lab;
+import java.util.Locale;
+public class Slugs {
+    public static String slugify(String text) {
+        if (text == null) {
+            throw new IllegalArgumentException("Input text cannot be null");
+        }
+        String lowercased = text.toLowerCase(Locale.ROOT);
+        String normalized = lowercased.replaceAll("[^a-z0-9]+", "-");
+        return normalized.replaceAll("^-*|-*$", "");
+    }
+
+    public static String slugifyUnicode(String text) {
+        return slugify(java.text.Normalizer.normalize(
+            text, java.text.Normalizer.Form.NFD));
+    }
+}
+'''
+
+
+class BehavioralDeltaTests(ExecuteWorkflowHarness):
+    """Milestone 7B hardening: candidate tests must distinguish candidate
+    production from pinned-base production before the workflow succeeds."""
+
+    def pin_base_production(self, source):
+        """Commit `source` as the pinned base production implementation."""
+        (self.repo / PROD_TARGET).write_text(source, encoding='utf-8')
+        git(self.repo, 'add', '.')
+        git(self.repo, '-c', 'user.name=Test', '-c', 'user.email=test@localhost',
+            'commit', '-m', 'Pin base production for the behavioral-delta fixture')
+        self.spec = prepare_spec(self.repo, 'main', TASK)
+
+    def added_case_test(self, case):
+        """The committed test suite plus exactly one new @Test method."""
+        original = git(self.repo, 'show', 'main:' + TEST_TARGET, raw=True)
+        return original[:original.rindex('}')] + case + '}\n'
+
+    HYPHEN_CASE = (
+        '    @Test void leadingTrailingHyphens() '
+        '{ assertEquals("hello-world", Slugs.slugify("--Hello-World--")); }\n'
+    )
+
+    UNICODE_CASE = (
+        '    @Test void unicode() '
+        '{ assertEquals("aeo", Slugs.slugifyUnicode("\u00e4\u00eb\u00f6")); }\n'
+    )
+
+    def delta_evidence(self, job_id):
+        workdir = self.root / 'jobs' / f'workflow-{job_id}'
+        return json.loads(
+            (workdir / 'attempt-3' / 'behavioral-delta.json').read_text(encoding='utf-8')
+        )
+
+    # ------------------------------------------------------------------
+    # Fixture 1: Workflow 26 - no behavioral delta
+    # ------------------------------------------------------------------
+
+    def test_workflow_26_fixture_is_rejected_with_no_behavioral_delta(self):
+        self.pin_base_production(WORKFLOW_26_BASE_PROD)
+        job_id, result, _ = self.run_case(
+            answers=[SELECTION, PLAN, WORKFLOW_26_PROD,
+                     self.added_case_test(self.HYPHEN_CASE)],
+            verify_results=[
+                {'passed': True, 'junit': {'tests': 13, 'failures': 0}},
+                {'passed': True, 'junit': {'tests': 12}},
+                HYBRID_NO_DELTA,  # the added test also passes against base
+            ],
+        )
+
+        self.assertEqual(result['status'], REJECTED_NO_BEHAVIORAL_DELTA)
+        self.assertNotEqual(result['status'], 'succeeded')
+        # A distinct terminal state, not a generic failure.
+        self.assertNotEqual(result['status'], 'failed')
+        self.assertIsNotNone(result['finished_at'])
+        self.assertIn('pinned-base production', result['error'])
+        self.assertIn('behavioral delta', result['error'])
+
+        evidence = self.delta_evidence(job_id)
+        self.assertEqual(evidence['classification'], NO_BEHAVIORAL_DELTA)
+        self.assertFalse(evidence['distinguishing'])
+
+        # Queryable from the stored attempt record, not only from the log.
+        final = result['attempts'][-1]
+        self.assertEqual(final['phase'], REJECTED_NO_BEHAVIORAL_DELTA)
+        self.assertEqual(final['result']['stage'], 'behavioral-delta')
+        self.assertIs(final['result']['passed'], False)
+
+    def test_no_behavioral_delta_never_commits_or_publishes(self):
+        self.pin_base_production(WORKFLOW_26_BASE_PROD)
+        job_id, result, _ = self.run_case(
+            answers=[SELECTION, PLAN, WORKFLOW_26_PROD,
+                     self.added_case_test(self.HYPHEN_CASE)],
+            verify_results=[
+                {'passed': True, 'junit': {'tests': 13, 'failures': 0}},
+                {'passed': True, 'junit': {'tests': 12}},
+                HYBRID_NO_DELTA,
+            ],
+        )
+        workdir = self.root / 'jobs' / f'workflow-{job_id}'
+        checkout = workdir / 'repo'
+        # No commit, no repository.json for the publisher to consume.
+        self.assertEqual(git(checkout, 'rev-parse', 'HEAD'), self.spec['base_commit'])
+        self.assertFalse((workdir / 'repository.json').exists())
+        self.assertEqual(git(self.repo, 'status', '--porcelain'), '')
+
+    # ------------------------------------------------------------------
+    # Fixture 2: genuine behavioral change - must be allowed through
+    # ------------------------------------------------------------------
+
+    def test_genuine_behavioral_change_passes_the_gate_and_commits(self):
+        self.pin_base_production(GENUINE_BASE_PROD)
+        job_id, result, _ = self.run_case(
+            answers=[SELECTION, PLAN, GOOD_PROD,
+                     self.added_case_test(self.HYPHEN_CASE)],
+            verify_results=[
+                {'passed': True, 'junit': {'tests': 13, 'failures': 0}},
+                {'passed': True, 'junit': {'tests': 12}},
+                HYBRID_DISTINGUISHING,  # base production fails the new case
+            ],
+        )
+        self.assertEqual(result['status'], 'succeeded', result.get('error'))
+
+        evidence = self.delta_evidence(job_id)
+        self.assertEqual(evidence['classification'], DISTINGUISHING_TEST_FAILURE)
+        self.assertTrue(evidence['distinguishing'])
+        # Failure diagnostics are preserved as behavioral-delta evidence.
+        self.assertIn('expected: <hello-world>', evidence['diagnostic'])
+
+        workdir = self.root / 'jobs' / f'workflow-{job_id}'
+        checkout = workdir / 'repo'
+        self.assertNotEqual(git(checkout, 'rev-parse', 'HEAD'), self.spec['base_commit'])
+
+        final = next(a['result'] for a in result['attempts']
+                     if (a.get('result') or {}).get('profile') == 'repo-execute-v1')
+        self.assertEqual(final['behavioral_delta']['classification'],
+                         DISTINGUISHING_TEST_FAILURE)
+
+    # ------------------------------------------------------------------
+    # Fixture 3: new candidate API - compile delta is distinguishing
+    # ------------------------------------------------------------------
+
+    def test_new_api_compile_failure_is_distinguishing_not_infrastructure(self):
+        self.pin_base_production(WORKFLOW_26_BASE_PROD)
+        job_id, result, _ = self.run_case(
+            answers=[SELECTION, PLAN, NEW_API_PROD,
+                     self.added_case_test(self.UNICODE_CASE)],
+            verify_results=[
+                {'passed': True, 'junit': {'tests': 13, 'failures': 0}},
+                {'passed': True, 'junit': {'tests': 12}},
+                HYBRID_API_COMPILE_FAILURE,
+            ],
+        )
+        self.assertEqual(result['status'], 'succeeded', result.get('error'))
+
+        evidence = self.delta_evidence(job_id)
+        self.assertEqual(evidence['classification'],
+                         DISTINGUISHING_API_COMPILE_FAILURE)
+        self.assertTrue(evidence['distinguishing'])
+        self.assertIn('API the base does not provide', evidence['diagnostic'])
+
+    # ------------------------------------------------------------------
+    # Fixture 4: infrastructure failure - fail closed
+    # ------------------------------------------------------------------
+
+    def test_hybrid_infrastructure_failure_fails_closed(self):
+        self.pin_base_production(GENUINE_BASE_PROD)
+        cases = {
+            'docker startup failure': {
+                'infrastructure_error': {'exit_code': 125, 'log': 'docker: no such image'},
+            },
+            'compile timeout': {
+                'compile': {'exit_code': 124, 'timed_out': True, 'log': ''},
+            },
+            'test timeout': {
+                'tests': {'exit_code': 124, 'timed_out': True, 'log': ''},
+            },
+            'container cleanup failure': {
+                'cleanup': {'exit_code': 1, 'log': 'docker rm: permission denied'},
+                'junit': {'tests': 13, 'failures': 0, 'skipped': 0},
+            },
+            'missing junit evidence': {},
+            'malformed junit evidence': {
+                'junit': {'tests': 'thirteen', 'failures': 0, 'skipped': 0},
+            },
+            'gradle failed without a junit failure': {
+                'tests': {'exit_code': 1},
+                'junit': {'tests': 13, 'failures': 0, 'skipped': 0},
+            },
+            'base production failed to compile': {
+                'compile': {'exit_code': 1, 'timed_out': False,
+                            'log': '> Task :compileJava FAILED\n'
+                                   '/work/project/src/main/java/lab/Slugs.java:4: '
+                                   'error: cannot find symbol\n'},
+            },
+        }
+
+        for name, extra in cases.items():
+            with self.subTest(failure=name):
+                hybrid = {'passed': False}
+                hybrid.update(extra)
+                job_id, result, _ = self.run_case(
+                    answers=[SELECTION, PLAN, GOOD_PROD,
+                             self.added_case_test(self.HYPHEN_CASE)],
+                    verify_results=[
+                        {'passed': True, 'junit': {'tests': 13, 'failures': 0}},
+                        {'passed': True, 'junit': {'tests': 12}},
+                        hybrid,
+                    ],
+                )
+                # Infrastructure trouble is not novelty evidence, and it is
+                # not a no-op verdict either.
+                self.assertEqual(result['status'], 'failed')
+                self.assertNotEqual(result['status'], REJECTED_NO_BEHAVIORAL_DELTA)
+                self.assertIn('Behavioral-delta', result['error'])
+
+                evidence = self.delta_evidence(job_id)
+                self.assertEqual(evidence['classification'], INFRASTRUCTURE_FAILURE)
+                self.assertFalse(evidence['distinguishing'])
+
+                checkout = self.root / 'jobs' / f'workflow-{job_id}' / 'repo'
+                self.assertEqual(git(checkout, 'rev-parse', 'HEAD'),
+                                 self.spec['base_commit'])
+
+    # ------------------------------------------------------------------
+    # Hybrid state construction
+    # ------------------------------------------------------------------
+
+    def test_hybrid_runs_base_production_against_candidate_tests(self):
+        self.pin_base_production(GENUINE_BASE_PROD)
+        candidate_test = self.added_case_test(self.HYPHEN_CASE)
+        job_id, result, _ = self.run_case(
+            answers=[SELECTION, PLAN, GOOD_PROD, candidate_test],
+            verify_results=[
+                {'passed': True, 'junit': {'tests': 13, 'failures': 0}},
+                {'passed': True, 'junit': {'tests': 12}},
+                HYBRID_DISTINGUISHING,
+            ],
+        )
+        self.assertEqual(result['status'], 'succeeded', result.get('error'))
+
+        # Candidate, baseline regression, hybrid - in that order.
+        self.assertEqual(len(self.observed_production_sources), 3)
+        self.assertEqual(self.observed_production_sources[0], GOOD_PROD)
+        self.assertEqual(self.observed_production_sources[1], GOOD_PROD)
+        # The hybrid saw PINNED-BASE production, never the candidate's.
+        self.assertEqual(self.observed_production_sources[2], GENUINE_BASE_PROD)
+        # Stage 5 ran base tests against candidate production; Stage 6 runs
+        # candidate tests against base production - the exact inverse.
+        self.assertEqual(self.observed_test_sources[0], candidate_test)
+        self.assertEqual(self.observed_test_sources[1],
+                         git(self.repo, 'show', 'main:' + TEST_TARGET, raw=True))
+        self.assertEqual(self.observed_test_sources[2], candidate_test)
+
+        # The candidate production file is restored afterwards and committed.
+        checkout = self.root / 'jobs' / f'workflow-{job_id}' / 'repo'
+        self.assertEqual(git(checkout, 'show', 'HEAD:' + PROD_TARGET, raw=True),
+                         GOOD_PROD)
+
+    def test_hybrid_manifest_records_reproducible_evidence(self):
+        self.pin_base_production(GENUINE_BASE_PROD)
+        candidate_test = self.added_case_test(self.HYPHEN_CASE)
+        job_id, result, _ = self.run_case(
+            answers=[SELECTION, PLAN, GOOD_PROD, candidate_test],
+            verify_results=[
+                {'passed': True, 'junit': {'tests': 13, 'failures': 0}},
+                {'passed': True, 'junit': {'tests': 12}},
+                HYBRID_DISTINGUISHING,
+            ],
+        )
+        self.assertEqual(result['status'], 'succeeded', result.get('error'))
+
+        evidence = self.delta_evidence(job_id)
+        manifest = evidence['manifest']
+        self.assertEqual(manifest['base_commit'], self.spec['base_commit'])
+        self.assertEqual(list(manifest['overlaid_candidate_test_files']), [TEST_TARGET])
+        self.assertEqual(
+            manifest['overlaid_candidate_test_files'][TEST_TARGET],
+            hashlib.sha256(candidate_test.encode()).hexdigest(),
+        )
+        self.assertEqual(manifest['base_production_files'], [PROD_TARGET])
+        # The hybrid the verifier actually built is exactly base content plus
+        # the overlaid candidate test.
+        self.assertEqual(manifest['hybrid_snapshot_sha256'],
+                         manifest['expected_snapshot_sha256'])
+        self.assertEqual(
+            manifest['expected_snapshot_sha256'][PROD_TARGET],
+            hashlib.sha256(GENUINE_BASE_PROD.encode()).hexdigest(),
+        )
+        self.assertNotEqual(
+            manifest['expected_snapshot_sha256'][PROD_TARGET],
+            hashlib.sha256(GOOD_PROD.encode()).hexdigest(),
+        )
+
+        workdir = self.root / 'jobs' / f'workflow-{job_id}'
+        hybrid_dir = workdir / 'attempt-3' / 'behavioral-delta-verification'
+        self.assertTrue(hybrid_dir.is_dir())
+        for name in ('compile.log', 'tests.log'):
+            self.assertTrue((hybrid_dir / name).is_file())
+
+    def test_candidate_production_leaking_into_the_hybrid_is_rejected(self):
+        """The manifest check, not the classifier, is what pins the hybrid to
+        base production - so break the snapshot and confirm it fires."""
+        self.pin_base_production(GENUINE_BASE_PROD)
+        leaked = dict(HYBRID_DISTINGUISHING)
+        leaked['leak_candidate_production'] = True
+        _, result, _ = self.run_case(
+            answers=[SELECTION, PLAN, GOOD_PROD,
+                     self.added_case_test(self.HYPHEN_CASE)],
+            verify_results=[
+                {'passed': True, 'junit': {'tests': 13, 'failures': 0}},
+                {'passed': True, 'junit': {'tests': 12}},
+                leaked,
+            ],
+        )
+        self.assertEqual(result['status'], 'failed')
+        self.assertIn('Hybrid counterfactual state', result['error'])
+
+    # ------------------------------------------------------------------
+    # Classifier units
+    # ------------------------------------------------------------------
+
+    def test_hybrid_overlay_is_approved_test_files_only(self):
+        selected = [PROD_TARGET, TEST_TARGET]
+        self.assertEqual(hybrid_overlay_files(selected, [TEST_TARGET]), [TEST_TARGET])
+        # Production is exactly what the counterfactual must exclude.
+        self.assertNotIn(PROD_TARGET, hybrid_overlay_files(selected, [TEST_TARGET]))
+        self.assertEqual(hybrid_overlay_files(selected, []), [])
+
+    def test_javac_errors_extracts_locations_and_messages(self):
+        errors = javac_errors(HYBRID_API_COMPILE_LOG)
+        self.assertEqual(len(errors), 1)
+        path, message = errors[0]
+        self.assertTrue(path.endswith('/' + TEST_TARGET))
+        self.assertEqual(message, 'cannot find symbol')
+        self.assertEqual(javac_errors(''), [])
+        self.assertEqual(javac_errors(None), [])
+
+    def test_compile_failure_attribution_requires_candidate_test_evidence(self):
+        overlaid = [TEST_TARGET]
+        good = {'compile': {'exit_code': 1, 'timed_out': False,
+                            'log': HYBRID_API_COMPILE_LOG}}
+        self.assertTrue(distinguishing_compile_failure(good, overlaid))
+
+        rejected = {
+            'production compile failed': HYBRID_API_COMPILE_LOG.replace(
+                '> Task :compileJava\n', '> Task :compileJava FAILED\n'),
+            'no test-compile task failure': HYBRID_API_COMPILE_LOG.replace(
+                ':compileTestJava FAILED', ':compileTestJava'),
+            'error outside the overlaid candidate tests': HYBRID_API_COMPILE_LOG.replace(
+                'src/test/java/lab/SlugsTest.java',
+                'src/test/java/lab/TextStatsTest.java'),
+            'no parsable javac error': '> Task :compileTestJava FAILED\nBUILD FAILED\n',
+            'unrelated javac error': HYBRID_API_COMPILE_LOG.replace(
+                'error: cannot find symbol', 'error: unclosed string literal'),
+        }
+        for name, log in rejected.items():
+            with self.subTest(case=name):
+                self.assertFalse(distinguishing_compile_failure(
+                    {'compile': {'exit_code': 1, 'timed_out': False, 'log': log}},
+                    overlaid,
+                ))
+
+        # A timed-out or non-javac exit code is never source incompatibility.
+        self.assertFalse(distinguishing_compile_failure(
+            {'compile': {'exit_code': 1, 'timed_out': True,
+                         'log': HYBRID_API_COMPILE_LOG}}, overlaid))
+        self.assertFalse(distinguishing_compile_failure(
+            {'compile': {'exit_code': 124, 'timed_out': False,
+                         'log': HYBRID_API_COMPILE_LOG}}, overlaid))
+        # Nothing overlaid means nothing is attributable to candidate tests.
+        self.assertFalse(distinguishing_compile_failure(good, []))
+
+    def test_classify_behavioral_delta_covers_every_case(self):
+        overlaid = [TEST_TARGET]
+        green = {'compile': {'exit_code': 0}, 'tests': {'exit_code': 0},
+                 'cleanup': {'exit_code': 0},
+                 'junit': {'tests': 13, 'failures': 0, 'skipped': 0}}
+
+        self.assertEqual(classify_behavioral_delta(green, overlaid)[0],
+                         NO_BEHAVIORAL_DELTA)
+        self.assertEqual(
+            classify_behavioral_delta(
+                dict(green, tests={'exit_code': 1},
+                     junit={'tests': 13, 'failures': 1, 'skipped': 0,
+                            'diagnostics': 'boom'}),
+                overlaid)[0],
+            DISTINGUISHING_TEST_FAILURE,
+        )
+        self.assertEqual(
+            classify_behavioral_delta(
+                dict(green, compile={'exit_code': 1, 'timed_out': False,
+                                     'log': HYBRID_API_COMPILE_LOG}),
+                overlaid)[0],
+            DISTINGUISHING_API_COMPILE_FAILURE,
+        )
+
+        infrastructure = {
+            'not a record': None,
+            'docker failure': dict(green, infrastructure_error={'exit_code': 125}),
+            'cleanup failure': dict(green, cleanup={'exit_code': 1, 'log': 'denied'}),
+            'compile timeout': dict(green, compile={'exit_code': 124, 'timed_out': True}),
+            'missing compile evidence': dict(green, compile={}),
+            'unattributable compile failure': dict(
+                green, compile={'exit_code': 1, 'timed_out': False, 'log': 'BUILD FAILED'}),
+            'test timeout': dict(green, tests={'exit_code': 124, 'timed_out': True}),
+            'missing test evidence': dict(green, tests={}),
+            'missing junit evidence': dict(green, junit={}),
+            'malformed junit evidence': dict(
+                green, junit={'tests': 'x', 'failures': 0, 'skipped': 0}),
+            'failed task without a junit failure': dict(green, tests={'exit_code': 1}),
+            'no executed cases': dict(
+                green, junit={'tests': 13, 'failures': 0, 'skipped': 13}),
+        }
+        for name, record in infrastructure.items():
+            with self.subTest(case=name):
+                classification, diagnostic = classify_behavioral_delta(record, overlaid)
+                self.assertEqual(classification, INFRASTRUCTURE_FAILURE)
+                self.assertTrue(diagnostic)
+
+        # An already-gone container is tolerated exactly as verify() does.
+        self.assertEqual(
+            classify_behavioral_delta(
+                dict(green, cleanup={'exit_code': 1,
+                                     'log': 'Error: No such container: x'}),
+                overlaid)[0],
+            NO_BEHAVIORAL_DELTA,
+        )
 
 
 if __name__ == '__main__':

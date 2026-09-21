@@ -19,6 +19,13 @@ SPEC = ("Return only Java source for public class Numbers, no package or main me
         "Implement public static int max(int[] values). Reject null and empty arrays with "
         "IllegalArgumentException. Correctly handle negative numbers and int boundaries.")
 
+# A workflow that ends in one of these is finished; anything else is a phase.
+# repo-execute-v1's behavioral-delta rejection gets its own externally
+# queryable terminal state so a semantically empty task can be told apart
+# from a generic failure in `show`, `wait`, `list` and the stored record.
+REJECTED_NO_BEHAVIORAL_DELTA = "rejected-no-behavioral-delta"
+TERMINAL_STATUSES = ("succeeded", "failed", "interrupted", REJECTED_NO_BEHAVIORAL_DELTA)
+
 
 class Store:
     def __init__(self, root=ROOT):
@@ -60,9 +67,10 @@ class Store:
 
     def status(self, job, state, error=None):
         with self.db() as db:
+            placeholders = ",".join("?" for _ in TERMINAL_STATUSES)
             db.execute("UPDATE workflows SET status=?,error=?,finished_at=CASE WHEN ? IN "
-                       "('succeeded','failed','interrupted') THEN CURRENT_TIMESTAMP ELSE NULL END WHERE id=?",
-                       (state, error, state, job))
+                       f"({placeholders}) THEN CURRENT_TIMESTAMP ELSE NULL END WHERE id=?",
+                       (state, error, state, *TERMINAL_STATUSES, job))
 
     def attempt(self, job, number, **fields):
         allowed = {"phase", "inference_job", "source", "result", "artifact_dir"}

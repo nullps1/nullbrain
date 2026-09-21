@@ -30,7 +30,10 @@ class RepoExecutePublishTests(unittest.TestCase):
             return {'passed': True, 'image_id': 'sha256:' + 'a' * 64,
                     'junit': {'tests': count, 'failures': 0, 'skipped': 0}}
 
-        verifications = [evidence(13), evidence(12)]
+        # Candidate, original-suite regression, and the hybrid counterfactual
+        # (candidate tests against pinned-base production, which must not
+        # fully pass).
+        verifications = [evidence(13), evidence(12), workflow.HYBRID_DISTINGUISHING]
         if repaired:
             answers += [json.dumps({'file': workflow.PROD_TARGET, 'reason': 'Fix production'}),
                         workflow.GOOD_PROD_REPAIRED]
@@ -225,6 +228,28 @@ class RepoExecutePublishTests(unittest.TestCase):
         with patch.object(repo_execute_publish, 'inspect', doctored([workflow.TEST_TARGET])):
             self.assertEqual(prepare(self.job, self.artifacts)['commit'],
                              git(self.checkout, 'rev-parse', 'HEAD'))
+
+    def test_no_behavioral_delta_workflow_cannot_be_published(self):
+        """A Workflow 26-style task never reaches 'succeeded', so the existing
+        status gate already blocks publication - confirm it, end to end."""
+        harness = workflow.BehavioralDeltaTests()
+        harness.setUp()
+        harness.pin_base_production(workflow.WORKFLOW_26_BASE_PROD)
+        image = 'sha256:' + 'a' * 64
+        _, job, _ = harness.run_case(
+            answers=[workflow.SELECTION, workflow.PLAN, workflow.WORKFLOW_26_PROD,
+                     harness.added_case_test(harness.HYPHEN_CASE)],
+            verify_results=[
+                {'passed': True, 'image_id': image,
+                 'junit': {'tests': 13, 'failures': 0, 'skipped': 0}},
+                {'passed': True, 'image_id': image,
+                 'junit': {'tests': 12, 'failures': 0, 'skipped': 0}},
+                workflow.HYBRID_NO_DELTA,
+            ],
+        )
+        self.assertEqual(job['status'], workflow.REJECTED_NO_BEHAVIORAL_DELTA)
+        with self.assertRaisesRegex(ValueError, 'successful'):
+            prepare(job, harness.root / 'jobs')
 
     def test_lone_carriage_return_matches_the_producer_review_hash(self):
         """The producer hashes sources read through Python text mode, which folds

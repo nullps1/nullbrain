@@ -6,7 +6,11 @@ import pathlib
 import re
 import subprocess
 
-from nullcode.core.java_workflow import JOBS, generate
+from nullcode.core.java_workflow import (
+    JOBS,
+    REJECTED_NO_BEHAVIORAL_DELTA,
+    generate,
+)
 from nullcode.gradle.gradle_workflow import inspect as inspect_gradle
 from nullcode.gradle.gradle_workflow import verify as verify_gradle
 from nullcode.repo.repo_plan_workflow import (
@@ -22,6 +26,28 @@ from nullcode.core.review_java import review_source
 PROFILE = "repo-execute-v1"
 MAX_SELECTED_FILES = 3
 MAX_SOURCE_BYTES = 900
+
+# ---------------------------------------------------------------------------
+# Behavioral-delta (hybrid counterfactual) classifications
+# ---------------------------------------------------------------------------
+# Only the two distinguishing values are evidence that the candidate tests
+# exercise behavior the pinned base does not satisfy. Everything else stops
+# the workflow: a no-op change is rejected on its own terminal state, and an
+# unexplained hybrid run is infrastructure failure, never novelty evidence.
+DISTINGUISHING_TEST_FAILURE = "distinguishing-test-failure"
+DISTINGUISHING_API_COMPILE_FAILURE = "distinguishing-api-compile-failure"
+NO_BEHAVIORAL_DELTA = "no-behavioral-delta"
+INFRASTRUCTURE_FAILURE = "infrastructure-failure"
+
+DISTINGUISHING_CLASSIFICATIONS = (
+    DISTINGUISHING_TEST_FAILURE,
+    DISTINGUISHING_API_COMPILE_FAILURE,
+)
+
+NO_BEHAVIORAL_DELTA_DIAGNOSTIC = (
+    "Candidate tests also pass against pinned-base production; the candidate "
+    "does not demonstrate a tested behavioral delta from the base."
+)
 
 
 def prepare_spec(repo, base, task):
@@ -363,6 +389,215 @@ def candidate_repairable(result, minimum, selected_tests):
         return True
 
     return bool(selected_tests) and insufficient_test_count(result, minimum)
+
+
+# ---------------------------------------------------------------------------
+# Behavioral-delta counterfactual
+# ---------------------------------------------------------------------------
+# Every gate before this one can pass on a task that rewrites production code
+# cosmetically and adds a test for behavior the pinned base already
+# satisfied. The counterfactual run - pinned-base production plus the exact
+# candidate test sources - is what supplies the missing evidence: those tests
+# must NOT fully pass against the base.
+
+
+def hybrid_overlay_files(selected, tests):
+    """Candidate files the hybrid counterfactual may overlay onto the base.
+
+    Test sources from the approved editable test scope, and nothing else.
+    Candidate production is what the hybrid is meant to exclude, so it never
+    appears here, and neither does anything outside the approved scope.
+    """
+    return [name for name in selected if name in tests]
+
+
+def hybrid_reverted_files(selected, tests):
+    """Selected production files the hybrid pins back to base content."""
+    return [name for name in selected if name not in tests]
+
+
+# javac diagnostics that mean "this source no longer matches the API it is
+# being compiled against" - exactly what a candidate test referencing a new
+# candidate method, type or constructor produces against pinned-base
+# production. Matched case-insensitively against the error text only.
+SOURCE_COMPATIBILITY_ERRORS = (
+    "cannot find symbol",
+    "cannot be applied",
+    "no suitable method found",
+    "no suitable constructor found",
+    "incompatible types",
+    "has private access",
+    "is not public",
+    "does not override or implement a method from a supertype",
+)
+
+JAVAC_ERROR = re.compile(
+    r"(?P<path>[^\s:]+\.java):(?P<line>\d+):\s*error:\s*(?P<message>.+)"
+)
+
+
+def javac_errors(log):
+    """(path, message) pairs for every javac error line in a build log."""
+    found = []
+
+    for line in str(log or "").splitlines():
+        match = JAVAC_ERROR.search(line)
+
+        if match:
+            found.append(
+                (match.group("path"), match.group("message").strip())
+            )
+
+    return found
+
+
+def distinguishing_compile_failure(result, overlaid):
+    """True when the hybrid's TEST compilation failed because the candidate
+    tests reference API absent from pinned-base production.
+
+    This is behavioral-delta evidence, not infrastructure failure - but only
+    when the compiler output actually says so. The decision is made from that
+    output alone: every reported error must sit inside a candidate test file
+    the hybrid overlaid, and at least one must be a source-compatibility
+    diagnostic. Anything else - production failing to compile, an error in a
+    file the candidate never touched, an unparsable log - is not attributable
+    to the candidate tests and falls through to infrastructure failure.
+    """
+    compile_result = result.get("compile") or {}
+
+    if compile_result.get("timed_out") or compile_result.get("exit_code") != 1:
+        return False
+
+    log = str(compile_result.get("log") or "")
+
+    # Pinned-base production is known to compile: the baseline regression
+    # stage built it moments ago. Production compilation failing here is an
+    # environment problem, not candidate-versus-base source incompatibility.
+    if ":compileJava FAILED" in log or ":compileTestJava FAILED" not in log:
+        return False
+
+    errors = javac_errors(log)
+
+    if not errors:
+        return False
+
+    suffixes = tuple("/" + name for name in overlaid)
+
+    if not suffixes or not all(path.endswith(suffixes) for path, _ in errors):
+        return False
+
+    return any(
+        any(pattern in message.lower() for pattern in SOURCE_COMPATIBILITY_ERRORS)
+        for _, message in errors
+    )
+
+
+def classify_behavioral_delta(result, overlaid):
+    """Classify the hybrid counterfactual run.
+
+    Returns ``(classification, diagnostic)``. The candidate continues only on
+    a distinguishing classification. A hybrid run that fully passes is a
+    no-op change and is rejected on its own terminal state. Everything the
+    evidence does not positively explain is infrastructure failure, which is
+    never novelty evidence and never a no-op verdict.
+    """
+    if not isinstance(result, dict):
+        return (
+            INFRASTRUCTURE_FAILURE,
+            "Hybrid verification produced no usable result record",
+        )
+
+    if result.get("infrastructure_error"):
+        return (
+            INFRASTRUCTURE_FAILURE,
+            "Hybrid verification container could not be started or prepared",
+        )
+
+    # verify() tolerates an already-gone container and nothing else.
+    cleanup = result.get("cleanup") or {}
+
+    if cleanup.get("exit_code") and "No such container" not in str(
+        cleanup.get("log") or ""
+    ):
+        return (
+            INFRASTRUCTURE_FAILURE,
+            "Hybrid verification container could not be removed",
+        )
+
+    compile_result = result.get("compile") or {}
+
+    if (
+        compile_result.get("timed_out")
+        or type(compile_result.get("exit_code")) is not int
+    ):
+        return (
+            INFRASTRUCTURE_FAILURE,
+            "Hybrid compilation produced no usable exit evidence",
+        )
+
+    if compile_result["exit_code"] != 0:
+        if distinguishing_compile_failure(result, overlaid):
+            return (
+                DISTINGUISHING_API_COMPILE_FAILURE,
+                "Candidate tests do not compile against pinned-base "
+                "production: they reference API the base does not provide.",
+            )
+
+        return (
+            INFRASTRUCTURE_FAILURE,
+            "Hybrid compilation failed for reasons the compiler output does "
+            "not attribute to the candidate test sources",
+        )
+
+    tests_result = result.get("tests") or {}
+
+    if (
+        tests_result.get("timed_out")
+        or type(tests_result.get("exit_code")) is not int
+    ):
+        return (
+            INFRASTRUCTURE_FAILURE,
+            "Hybrid test execution produced no usable exit evidence",
+        )
+
+    junit = result.get("junit") or {}
+
+    if any(
+        type(junit.get(field)) is not int
+        for field in ("tests", "failures", "skipped")
+    ):
+        return (
+            INFRASTRUCTURE_FAILURE,
+            "Hybrid run produced no usable JUnit case evidence",
+        )
+
+    if junit["failures"] > 0:
+        diagnostics = str(junit.get("diagnostics") or "").strip()
+
+        detail = (
+            "Candidate tests fail against pinned-base production, which is "
+            "direct evidence that they exercise behavior the base does not "
+            "satisfy."
+        )
+
+        if diagnostics:
+            detail += " " + diagnostics
+
+        return DISTINGUISHING_TEST_FAILURE, detail
+
+    if tests_result["exit_code"] != 0:
+        return (
+            INFRASTRUCTURE_FAILURE,
+            "Hybrid test task failed without reporting a JUnit failure",
+        )
+
+    if junit["tests"] - junit["skipped"] < 1:
+        return (
+            INFRASTRUCTURE_FAILURE,
+            "Hybrid run executed no test cases",
+        )
+
+    return NO_BEHAVIORAL_DELTA, NO_BEHAVIORAL_DELTA_DIAGNOSTIC
 
 
 def verification_diagnostic(result, minimum=None):
@@ -1199,7 +1434,192 @@ def run_job(store, job, generate_fn=generate, verify_fn=verify_gradle, artifacts
                 )
                 return
 
-        # ----- Stage 6: deterministic review -----
+        # ----- Stage 6: behavioral-delta counterfactual -----
+        # Everything above proves the candidate is self-consistent and does
+        # not regress the original suite. None of it proves the production
+        # edit was necessary: a cosmetic rewrite plus a test for behavior the
+        # pinned base already satisfied passes every one of those gates.
+        #
+        # Build the hybrid state - pinned-base production plus the exact
+        # candidate test sources - and run the candidate suite against it.
+        # Candidate production must NOT reach this state; the manifest check
+        # below enforces that against the verifier's own snapshot hashes.
+        overlaid = hybrid_overlay_files(selected, tests)
+        reverted = hybrid_reverted_files(selected, tests)
+
+        overlaid_hashes = {
+            name: hashlib.sha256((checkout / name).read_bytes()).hexdigest()
+            for name in overlaid
+        }
+
+        saved_production = {
+            name: (checkout / name).read_bytes()
+            for name in reverted
+        }
+
+        hybrid_dir = attempt / "behavioral-delta-verification"
+        hybrid_dir.mkdir()
+
+        try:
+            for name in reverted:
+                original = git(
+                    checkout,
+                    "show",
+                    spec["base_commit"] + ":" + name,
+                    raw=True,
+                )
+                (checkout / name).write_text(
+                    original,
+                    encoding="utf-8",
+                )
+
+            def hybrid_phase(state):
+                store.status(job_id, "behavioral-delta-" + state)
+                store.attempt(
+                    job_id,
+                    3,
+                    phase="behavioral-delta-" + state,
+                )
+
+            store.status(job_id, "behavioral-delta-preparing")
+
+            hybrid_result = verify_fn(
+                checkout,
+                paths,
+                hybrid_dir,
+                config["minimum_tests"],
+                hybrid_phase,
+            )
+
+        finally:
+            for name, data in saved_production.items():
+                (checkout / name).write_bytes(data)
+
+        classification, delta_diagnostic = classify_behavioral_delta(
+            hybrid_result,
+            overlaid,
+        )
+
+        # original_hashes was taken at the base commit before any edit, so it
+        # is exactly base content for every tracked path. The hybrid the
+        # verifier actually built must equal that, with only the approved
+        # candidate test files overlaid.
+        expected_hybrid = dict(original_hashes)
+        expected_hybrid.update(overlaid_hashes)
+
+        hybrid_compile = hybrid_result.get("compile") or {}
+        hybrid_tests = hybrid_result.get("tests") or {}
+
+        for name, log in (
+            ("compile.log", hybrid_compile.get("log")),
+            ("tests.log", hybrid_tests.get("log")),
+        ):
+            (hybrid_dir / name).write_text(
+                str(log or ""),
+                encoding="utf-8",
+            )
+
+        behavioral_delta = {
+            "stage": "behavioral-delta",
+            "profile": PROFILE,
+            "workflow_id": job_id,
+            "classification": classification,
+            "diagnostic": delta_diagnostic,
+            "distinguishing": classification in DISTINGUISHING_CLASSIFICATIONS,
+            "base_commit": spec["base_commit"],
+            "branch": branch,
+            "manifest": {
+                "base_commit": spec["base_commit"],
+                "overlaid_candidate_test_files": overlaid_hashes,
+                "base_production_files": list(reverted),
+                "expected_snapshot_sha256": expected_hybrid,
+                "hybrid_snapshot_sha256": hybrid_result.get("snapshot_sha256"),
+            },
+            "image_id": hybrid_result.get("image_id"),
+            "compile_exit_code": hybrid_compile.get("exit_code"),
+            "tests_exit_code": hybrid_tests.get("exit_code"),
+            "junit": hybrid_result.get("junit"),
+            "artifact_dir": str(hybrid_dir),
+            "verification": hybrid_result,
+        }
+
+        (attempt / "behavioral-delta.json").write_text(
+            json.dumps(behavioral_delta, indent=2),
+            encoding="utf-8",
+        )
+
+        if hybrid_result.get("snapshot_sha256") != expected_hybrid:
+            raise ValueError(
+                "Hybrid counterfactual state is not pinned-base production "
+                "plus candidate tests"
+            )
+
+        if classification == NO_BEHAVIORAL_DELTA:
+            result = {
+                "passed": False,
+                "stage": "behavioral-delta",
+                "selected_files": selected,
+                "candidate_verification": candidate_result,
+                "baseline_verification": regression_result,
+                "behavioral_delta": behavioral_delta,
+            }
+
+            (attempt / "result.json").write_text(
+                json.dumps(result, indent=2),
+                encoding="utf-8",
+            )
+
+            store.attempt(
+                job_id,
+                3,
+                phase=REJECTED_NO_BEHAVIORAL_DELTA,
+                result=json.dumps(result),
+            )
+
+            # A distinct terminal state, not a generic failure: Workflow
+            # 26-style outcomes have to be queryable on their own. Nothing is
+            # committed and nothing is publishable from here.
+            store.status(
+                job_id,
+                REJECTED_NO_BEHAVIORAL_DELTA,
+                delta_diagnostic,
+            )
+            return
+
+        if classification not in DISTINGUISHING_CLASSIFICATIONS:
+            # The hybrid environment broke. That is not evidence either way,
+            # so the candidate stops here under the workflow's normal
+            # infrastructure-failure semantics.
+            result = {
+                "passed": False,
+                "stage": "behavioral-delta",
+                "selected_files": selected,
+                "candidate_verification": candidate_result,
+                "baseline_verification": regression_result,
+                "behavioral_delta": behavioral_delta,
+            }
+
+            (attempt / "result.json").write_text(
+                json.dumps(result, indent=2),
+                encoding="utf-8",
+            )
+
+            store.attempt(
+                job_id,
+                3,
+                phase="failed",
+                result=json.dumps(result),
+            )
+
+            store.status(
+                job_id,
+                "failed",
+                "Behavioral-delta verification could not produce usable "
+                "evidence: " + delta_diagnostic,
+            )
+            return
+
+        # ----- Stage 7: deterministic review -----
         patch = git(
             checkout,
             "diff",
@@ -1247,6 +1667,7 @@ def run_job(store, job, generate_fn=generate, verify_fn=verify_gradle, artifacts
                 "selected_files": selected,
                 "candidate_verification": candidate_result,
                 "baseline_verification": regression_result,
+                "behavioral_delta": behavioral_delta,
                 "review": review_result,
             }
 
@@ -1290,7 +1711,7 @@ def run_job(store, job, generate_fn=generate, verify_fn=verify_gradle, artifacts
                 "Checkout changed after candidate verification"
             )
 
-        # ----- Stage 7: verified commit -----
+        # ----- Stage 8: verified commit -----
         git(checkout, "add", "--", *selected)
 
         git(
@@ -1327,6 +1748,7 @@ def run_job(store, job, generate_fn=generate, verify_fn=verify_gradle, artifacts
             "plan": plan,
             "candidate_verification": candidate_result,
             "baseline_verification": regression_result,
+            "behavioral_delta": behavioral_delta,
             "review": review_result,
             "repository": repository,
         }

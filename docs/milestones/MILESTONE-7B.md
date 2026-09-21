@@ -1,5 +1,13 @@
 # Milestone 7B: planned, bounded multi-file execution
 
+> **Superseded in part.** The seven stages below are unchanged, but a
+> behavioral-delta counterfactual now runs between stage 6 (baseline-test
+> regression, including its added-coverage comparison) and stage 7
+> (deterministic review, then commit). Without it a candidate could reach
+> `succeeded` while changing no production behavior at all. See
+> [7B hardening](MILESTONE-7B-HARDENING.md); the test counts at the bottom of
+> this document are historical.
+
 `repo_execute_workflow.py` extends the single-file Gradle workflow (Milestone
 6) to a small, plan-driven multi-file change: production code and its test
 together. Profile `repo-execute-v1`. This is not general repository editing —

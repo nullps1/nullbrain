@@ -1,8 +1,8 @@
 """Create a new local Git repository for the repository-workflow smoke test."""
 import argparse
 import pathlib
-from repo_workflow import git, TARGET, TEST
-from validate_java import TESTS
+from nullcode.repo.repo_workflow import git, TARGET, TEST
+from nullcode.core.validate_java import TESTS
 
 
 def create(path):

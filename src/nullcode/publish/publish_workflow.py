@@ -6,9 +6,9 @@ import pathlib
 import re
 import subprocess
 
-from java_workflow import JOBS, Store
-from repo_workflow import TARGET, TEST, git
-from review_java import review_source
+from nullcode.core.java_workflow import JOBS, Store
+from nullcode.repo.repo_workflow import TARGET, TEST, git
+from nullcode.core.review_java import review_source
 
 
 def digest(text):
@@ -77,7 +77,7 @@ def prepare(job, artifacts=JOBS):
 
 
 def prepare_gradle(job, artifacts):
-    from gradle_workflow import inspect
+    from nullcode.gradle.gradle_workflow import inspect
     if job['status'] != 'succeeded':
         raise ValueError('Workflow did not succeed')
     spec = json.loads(job['repo_spec'])

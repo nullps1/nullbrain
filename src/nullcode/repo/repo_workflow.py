@@ -5,9 +5,9 @@ import pathlib
 import re
 import subprocess
 
-from java_workflow import JOBS, clip, generate, verify
-from validate_java import extract_source
-from review_java import REVIEW_DEMO, review_source
+from nullcode.core.java_workflow import JOBS, clip, generate, verify
+from nullcode.core.validate_java import extract_source
+from nullcode.core.review_java import REVIEW_DEMO, review_source
 
 TARGET = 'src/main/java/Numbers.java'
 TEST = 'src/test/java/NumbersTest.java'

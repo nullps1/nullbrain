@@ -2,7 +2,8 @@
 import argparse
 import json
 import pathlib
-from repo_workflow import git
+from nullcode.gradle.gradle_workflow import PROFILE as GRADLE_PROFILE
+from nullcode.repo.repo_workflow import git
 
 FILES = {
 'src/main/java/lab/Slugs.java': '''package lab;
@@ -53,7 +54,7 @@ def create(path):
     path = pathlib.Path(path).resolve()
     path.mkdir(parents=True, exist_ok=False)
     files = dict(FILES)
-    template = pathlib.Path(__file__).parent / 'gradle_profile'
+    template = GRADLE_PROFILE
     for name in ('build.gradle', 'settings.gradle', 'gradle.properties'):
         files[name] = (template / name).read_text(encoding='utf-8')
     files['.nullcode.json'] = json.dumps({'profile': 'gradle-junit-v1',

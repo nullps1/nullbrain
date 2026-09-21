@@ -3,9 +3,9 @@ import pathlib
 import sqlite3
 import unittest
 import uuid
-from create_fixture import create
-from java_workflow import Store
-from repo_workflow import git, prepare_spec, run_repo_job, TARGET, TEST
+from nullcode.fixtures.create_fixture import create
+from nullcode.core.java_workflow import Store
+from nullcode.repo.repo_workflow import git, prepare_spec, run_repo_job, TARGET, TEST
 
 SOURCE = 'public class Numbers { public static int max(int[] values) { return 42; } }'
 

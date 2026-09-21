@@ -7,9 +7,9 @@ import json
 import pathlib
 import tempfile
 
-from accepted_workflow import load_contract, prepare_spec
-from gradle_workflow import verify
-from repo_workflow import git
+from nullcode.repo.accepted_workflow import load_contract, prepare_spec
+from nullcode.gradle.gradle_workflow import verify
+from nullcode.repo.repo_workflow import git
 
 
 REFERENCE = r'''package lab;

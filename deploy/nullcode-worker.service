@@ -8,8 +8,9 @@ Type=simple
 User=null
 Group=null
 SupplementaryGroups=docker
-WorkingDirectory=/srv/nullbrain/src/nullcode
-ExecStart=/usr/bin/python3 -u /srv/nullbrain/src/nullcode/java_workflow.py run
+WorkingDirectory=/srv/nullbrain
+Environment=PYTHONPATH=/srv/nullbrain/src
+ExecStart=/usr/bin/python3 -u -m nullcode.core.java_workflow run
 Restart=on-failure
 RestartSec=5
 UMask=0027

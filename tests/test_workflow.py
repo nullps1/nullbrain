@@ -2,7 +2,7 @@ import pathlib
 import uuid
 import unittest
 from unittest.mock import patch
-from java_workflow import Store, run_job, clip, SPEC, verify
+from nullcode.core.java_workflow import Store, run_job, clip, SPEC, verify
 
 SOURCE = 'public class Numbers { public static int max(int[] values) { return 0; } }'
 
@@ -98,8 +98,8 @@ class WorkflowTests(unittest.TestCase):
         folder = self.root / 'verify'
         folder.mkdir()
         phases = []
-        with patch('java_workflow.subprocess.check_output', return_value='sha256:test'), \
-             patch('java_workflow.command', side_effect=outputs):
+        with patch('nullcode.core.java_workflow.subprocess.check_output', return_value='sha256:test'), \
+             patch('nullcode.core.java_workflow.command', side_effect=outputs):
             return verify(SOURCE, folder, phases.append), phases
 
     def test_verifier_stops_after_compile_failure(self):

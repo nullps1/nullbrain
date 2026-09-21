@@ -4,11 +4,11 @@ import json
 import pathlib
 import re
 
-from java_workflow import JOBS, generate
-from gradle_workflow import inspect, verify
-from repo_execute_workflow import compact_prompt_java, extract_java, verification_diagnostic
-from repo_workflow import git
-from review_java import review_source
+from nullcode.core.java_workflow import JOBS, generate
+from nullcode.gradle.gradle_workflow import inspect, verify
+from nullcode.repo.repo_execute_workflow import compact_prompt_java, extract_java, verification_diagnostic
+from nullcode.repo.repo_workflow import git
+from nullcode.core.review_java import review_source
 
 PROFILE = "accepted-java-v1"
 

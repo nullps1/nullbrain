@@ -2,11 +2,11 @@ import hashlib
 import pathlib
 import unittest
 import uuid
-from create_gradle_fixture import create, FILES
-from gradle_workflow import prepare_spec, run_job, extract, junit_report, repair_prompt
-from java_workflow import Store
-from repo_workflow import git
-from publish_workflow import prepare
+from nullcode.fixtures.create_gradle_fixture import create, FILES
+from nullcode.gradle.gradle_workflow import prepare_spec, run_job, extract, junit_report, repair_prompt
+from nullcode.core.java_workflow import Store
+from nullcode.repo.repo_workflow import git
+from nullcode.publish.publish_workflow import prepare
 
 TARGET = 'src/main/java/lab/Slugs.java'
 GOOD = '''package lab;

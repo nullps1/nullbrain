@@ -11,7 +11,7 @@ import time
 import urllib.request
 import uuid
 
-from validate_java import TESTS, extract_source
+from nullcode.core.validate_java import TESTS, extract_source
 
 ROOT = pathlib.Path(os.environ.get("NULLCODE_WORKFLOW_DIR", "/srv/nullbrain/data/nullcode-workflows"))
 JOBS = pathlib.Path(os.environ.get("NULLCODE_JOBS_DIR", "/srv/nullbrain/jobs"))
@@ -286,24 +286,24 @@ def main():
         initial = "public class Numbers { public static int max(int[] values) { return 0; } }" if args.repair_demo else None
         print(json.dumps({"workflow_id": store.submit(initial), "status": "queued"}))
     elif args.action == "submit-repo":
-        from repo_workflow import prepare_spec
+        from nullcode.repo.repo_workflow import prepare_spec
         spec = prepare_spec(args.repo, args.base, args.task)
         spec['review_demo'] = args.review_demo
         print(json.dumps({"workflow_id": store.submit(repo_spec=spec), "status": "queued", "base_commit": spec['base_commit']}))
     elif args.action == "submit-gradle":
-        from gradle_workflow import prepare_spec
+        from nullcode.gradle.gradle_workflow import prepare_spec
         spec = prepare_spec(args.repo, args.base, args.task, args.file)
         print(json.dumps({"workflow_id": store.submit(repo_spec=spec), "status": "queued", "base_commit": spec['base_commit']}))
     elif args.action == "submit-plan":
-        from repo_plan_workflow import prepare_spec
+        from nullcode.repo.repo_plan_workflow import prepare_spec
         spec = prepare_spec(args.repo, args.base, args.task)
         print(json.dumps({"workflow_id": store.submit(repo_spec=spec), "status": "queued", "base_commit": spec['base_commit']}))
     elif args.action == "submit-execute":
-        from repo_execute_workflow import prepare_spec
+        from nullcode.repo.repo_execute_workflow import prepare_spec
         spec = prepare_spec(args.repo, args.base, args.task)
         print(json.dumps({"workflow_id": store.submit(repo_spec=spec), "status": "queued", "base_commit": spec['base_commit']}))
     elif args.action == "submit-accepted":
-        from accepted_workflow import prepare_spec
+        from nullcode.repo.accepted_workflow import prepare_spec
         spec = prepare_spec(args.repo, args.base, args.contract, args.acceptance_reviewed)
         print(json.dumps({"workflow_id": store.submit(repo_spec=spec), "status": "queued", "base_commit": spec['base_commit']}))
     elif args.action == "show":
@@ -345,19 +345,19 @@ def main():
                     if job.get('repo_spec'):
                         profile = json.loads(job['repo_spec']).get('profile')
                         if profile == 'gradle-junit-v1':
-                            from gradle_workflow import run_job as run_gradle_job
+                            from nullcode.gradle.gradle_workflow import run_job as run_gradle_job
                             run_gradle_job(store, job)
                         elif profile == 'repo-plan-v1':
-                            from repo_plan_workflow import run_job as run_plan_job
+                            from nullcode.repo.repo_plan_workflow import run_job as run_plan_job
                             run_plan_job(store, job)
                         elif profile == 'accepted-java-v1':
-                            from accepted_workflow import run_job as run_accepted_job
+                            from nullcode.repo.accepted_workflow import run_job as run_accepted_job
                             run_accepted_job(store, job)
                         elif profile == 'repo-execute-v1':
-                            from repo_execute_workflow import run_job as run_execute_job
+                            from nullcode.repo.repo_execute_workflow import run_job as run_execute_job
                             run_execute_job(store, job)
                         else:
-                            from repo_workflow import run_repo_job
+                            from nullcode.repo.repo_workflow import run_repo_job
                             run_repo_job(store, job)
                     else:
                         run_job(store, job)

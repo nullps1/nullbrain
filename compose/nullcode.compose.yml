@@ -1,7 +1,8 @@
 name: nullcode
 services:
   controller:
-    build: .
+    # The controller image is the Rust project; context is relative to this file.
+    build: ../rust
     restart: unless-stopped
     network_mode: host
     user: "1001:1001"

@@ -1,12 +1,49 @@
 # NullCode project state
 
-**Updated:** 2026-09-21, at the "reorganize nullcode project structure" refactor.
-**Branch:** `claude/nullcode-repo-reorganize-ppmwni`
-**Pre-refactor commit:** `7e077ee` ("Initial NullBrain server backup")
+**Updated:** 2026-09-21, Milestone 7C-2 implementation and Linux review.
+**Implementation commits:** `34fc203` (7C-2), then the Linux-review hardening
+commit on top of it. Identified by commit rather than by branch, because the
+development branches are deleted once merged.
+**Implementation base:** `4013fbd` (original-suite coverage-gate fix).
 
 This is the authoritative handoff document. Read it before changing anything.
-It describes the repository **as it actually is**, verified by running the
-commands in [§8](#8-verifying-this-state) — not by copying older notes.
+The current update below supersedes the retained refactor-era snapshot in
+sections 1–9. Historical test counts, branch/history statements, and next-step
+proposals in those sections are not current. Section 10's constraints remain.
+
+## Current update: 7C-2
+
+Successful `repo-execute-v1` workflows can now use the existing explicit
+publisher CLI for a local preview and optional draft PR. Profile-specific
+validation checks final-result identity across repair attempts, candidate and
+original-test snapshots, exact committed scope, protected files, per-file
+review hashes, and an increase in executed test cases. Shared delivery behavior
+is unchanged. See [Milestone 7C-2](milestones/MILESTONE-7C-2.md).
+
+7C-1 scope proposals remain unimplemented; a design proposal for them is now
+written up in [Proposal 7C-1](milestones/PROPOSAL-7C-1.md), which is a document
+to argue with, not an approved design. This change does not deploy anything
+to the Pi, publish automatically, or remove human scope/acceptance decisions.
+The publisher still targets remote `main` with an exact base-commit match.
+
+Two follow-up hardening changes were made after a Linux review of the commit.
+The publisher now re-derives the approved `editable_test_files` scope with the
+same rules the 7B producer applies, instead of trusting the committed field
+that the shared Gradle `inspect()` does not validate. It also folds a lone CR
+when reading committed text, matching the universal-newline translation the
+producer's own review hashes were computed under.
+
+Validation for this update is recorded in the milestone document. The baseline
+at `4013fbd` passed all 95 Python tests on Windows; the complete suite with
+7C-2 passed **103 tests** in 245.755 seconds there. With the hardening changes
+the suite passes **105 tests** in 17.805 seconds on Linux (x86-64,
+Python 3.11.15, Git 2.43). Publisher CLI help, Python compilation, and
+`git diff --check` passed in both environments.
+
+Live Ollama, Docker/Gradle, GitHub delivery, and Pi memory/temperature remain
+unexercised: the Linux environment has no Ollama installed, so no workflow has
+run against a live model. Rust is unchanged and untested in both sessions.
+Pi validation is still outstanding.
 
 ---
 

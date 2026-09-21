@@ -185,6 +185,13 @@ set it programmatically.**
 `publish/publish_workflow.py` is an explicit CLI step. The worker never
 publishes on its own.
 
+For `repo-execute-v1`, it delegates local validation to
+`publish/repo_execute_publish.py`. That validator resolves the authoritative
+final result against root repository metadata, checks candidate and original-test
+snapshots, verifies protected files and per-file reviews, re-derives the approved
+`editable_test_files` scope rather than trusting it, and requires an
+increase in executed test cases. See [Milestone 7C-2](milestones/MILESTONE-7C-2.md).
+
 - Default mode is a local preview making **no** GitHub requests.
 - `--publish` pushes the task branch and opens a **draft** PR.
 - Preconditions: succeeded workflow, zero compile/test/cleanup exit codes, the

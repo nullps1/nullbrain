@@ -11,8 +11,21 @@ historical record.
 | [MILESTONE-4.md](MILESTONE-4.md) | Targeted review before committing |
 | [MILESTONE-5.md](MILESTONE-5.md) | Draft pull-request delivery |
 | [MILESTONE-6.md](MILESTONE-6.md) | Configurable small Gradle/JUnit tasks |
+| [MILESTONE-7A.md](MILESTONE-7A.md) | Read-only repository inspection and planning |
+| [MILESTONE-7B.md](MILESTONE-7B.md) | Planned, bounded multi-file execution |
+| [MILESTONE-7C-2.md](MILESTONE-7C-2.md) | Multi-file draft PR publishing |
 
 Milestone 1 is documented in [`rust/README.md`](../../rust/README.md).
+
+## Proposals
+
+Design documents for work that is **not implemented**. They record a proposed
+shape and its open questions so the design can be argued about first; they are
+not approvals and claim no verification.
+
+| Document | Increment |
+| --- | --- |
+| [PROPOSAL-7C-1.md](PROPOSAL-7C-1.md) | Model-proposed scope, human-granted scope |
 
 ## ⚠️ Commands in these documents are historical
 
@@ -40,7 +53,8 @@ Prefix Python commands with `PYTHONPATH=src` unless the package is installed.
 
 ## Undocumented increments
 
-Milestones 7A, 7B, the `accepted-java-v1` acceptance workflow and the
+7A and 7B were written up in `44e36aa` and are listed above. The
+`accepted-java-v1` acceptance workflow and the
 `javac-string-array-stream-loop-v1` repair rule are implemented and tested but
-have **no milestone document**. See `docs/PROJECT_STATE.md` §6.1 — writing them
-is the clearest remaining documentation gap.
+still have **no milestone document**. See `docs/PROJECT_STATE.md` §6.1 —
+writing them is the clearest remaining documentation gap.

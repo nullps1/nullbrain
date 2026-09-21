@@ -16,6 +16,9 @@ def digest(text):
 
 
 def prepare(job, artifacts=JOBS):
+    if job.get('repo_spec') and json.loads(job['repo_spec']).get('profile') == 'repo-execute-v1':
+        from nullcode.publish.repo_execute_publish import prepare_repo_execute
+        return prepare_repo_execute(job, artifacts)
     if job.get('repo_spec') and json.loads(job['repo_spec']).get('profile') == 'gradle-junit-v1':
         return prepare_gradle(job, artifacts)
     if job['status'] != 'succeeded' or not job.get('repo_spec'):

@@ -9,6 +9,16 @@ milestone 6 are ordered by increment, not by date.
 
 ## Unreleased
 
+### Milestone 7C-2 — 2026-09-21
+
+- Add profile-specific validation and explicit draft-PR publishing for
+  successful multi-file `repo-execute-v1` workflows, including repaired jobs.
+- Check both verification snapshots, original-test regression, protected files,
+  executed-case increases, exact committed scope, and per-file review hashes.
+- Preserve existing draft-only delivery and preview behavior. Scope proposals
+  (7C-1) remain unimplemented. See [7C-2](milestones/MILESTONE-7C-2.md) for test
+  coverage and live-deployment limits.
+
 ### Repository reorganization — 2026-09-21
 
 Structural and documentation refactor. **No behaviour changed.**

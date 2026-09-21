@@ -1,12 +1,32 @@
 # NullCode project state
 
-**Updated:** 2026-09-21, at the "reorganize nullcode project structure" refactor.
-**Branch:** `claude/nullcode-repo-reorganize-ppmwni`
-**Pre-refactor commit:** `7e077ee` ("Initial NullBrain server backup")
+**Updated:** 2026-09-21, Milestone 7C-2 implementation.
+**Implementation branch:** `codex/milestone-7c2`
+**Implementation base:** `4013fbd` (original-suite coverage-gate fix).
 
 This is the authoritative handoff document. Read it before changing anything.
-It describes the repository **as it actually is**, verified by running the
-commands in [§8](#8-verifying-this-state) — not by copying older notes.
+The current update below supersedes the retained refactor-era snapshot in
+sections 1–9. Historical test counts, branch/history statements, and next-step
+proposals in those sections are not current. Section 10's constraints remain.
+
+## Current update: 7C-2
+
+Successful `repo-execute-v1` workflows can now use the existing explicit
+publisher CLI for a local preview and optional draft PR. Profile-specific
+validation checks final-result identity across repair attempts, candidate and
+original-test snapshots, exact committed scope, protected files, per-file
+review hashes, and an increase in executed test cases. Shared delivery behavior
+is unchanged. See [Milestone 7C-2](milestones/MILESTONE-7C-2.md).
+
+7C-1 scope proposals remain unimplemented. This change does not deploy anything
+to the Pi, publish automatically, or remove human scope/acceptance decisions.
+The publisher still targets remote `main` with an exact base-commit match.
+
+Validation for this update is recorded in the milestone document. The baseline
+at `4013fbd` passed all 95 Python tests on Windows; the complete suite with
+7C-2 passed **103 tests** in 245.755 seconds. Publisher CLI help, Python
+compilation, and `git diff --check` also passed. No new live Ollama,
+Docker/Gradle, Rust, or GitHub checks were performed for this Python-only change.
 
 ---
 

@@ -16,8 +16,8 @@ Verified in this environment at the refactor:
 
 | Check | Result |
 | --- | --- |
-| Python suite (`python3 -m unittest discover -s tests`) | **77 passed**, 0 failed |
-| Python suite under `pytest` | **77 passed** (6 subtests) |
+| Python suite (`python3 -m unittest discover -s tests`) | **93 passed**, 0 failed |
+| Python suite under `pytest` | **93 passed** (subtests included) |
 | Rust suite (`cargo test` in `rust/`) | **3 passed** |
 | `cargo check` | clean |
 | `docker compose -f compose/nullcode.compose.yml config` | valid; build context resolves to `rust/` |
@@ -115,17 +115,21 @@ and `compose/ollama.compose.yml`, and the controller build context is `rust/`.
 | 4 | Targeted review before committing | [`milestones/MILESTONE-4.md`](milestones/MILESTONE-4.md) |
 | 5 | Draft pull-request delivery | [`milestones/MILESTONE-5.md`](milestones/MILESTONE-5.md) |
 | 6 | Configurable small Gradle/JUnit tasks | [`milestones/MILESTONE-6.md`](milestones/MILESTONE-6.md) |
-| 7A | Read-only repository inspection and planning | *no document — see `repo_plan_workflow.py` docstring* |
-| 7B | Planned, bounded multi-file execution | *no document — see `repo_execute_workflow.py` docstring* |
+| 7A | Read-only repository inspection and planning | [`milestones/MILESTONE-7A.md`](milestones/MILESTONE-7A.md) |
+| 7B | Planned, bounded multi-file execution | [`milestones/MILESTONE-7B.md`](milestones/MILESTONE-7B.md) |
 | — | Acceptance-gated production edits (`accepted-java-v1`) | *no document — see `accepted_workflow.py`* |
 | — | `javac`-driven repair rule (`javac-string-array-stream-loop-v1`) | *no document — see `compiler_repair_rule`* |
 
 ## 6. Known limitations and unresolved issues
 
-1. **Milestone documentation stops at 6.** Milestones 7A, 7B, the acceptance
-   workflow and the compiler repair rule are implemented and tested but have no
-   milestone document. Their behaviour was reconstructed from source for this
-   document. *Writing those documents is the clearest documentation gap.*
+1. **The acceptance workflow and the compiler repair rule still have no
+   milestone document.** 7A and 7B are now documented in
+   `docs/milestones/`, each backed by a dedicated test file
+   (`test_repo_plan_workflow.py`, `test_repo_execute_workflow.py`) that
+   exercises their orchestration with fake inference — not just a source
+   reading. The acceptance workflow (`accepted-java-v1`) and the
+   `javac-string-array-stream-loop-v1` repair rule remain undocumented,
+   though both do have real test coverage via `test_accepted_workflow.py`.
 2. **No Git history to recover from.** The repository has a single commit
    (`7e077ee`). See [§7](#7-checkpoint-snapshots).
 3. **`Cargo.lock` is not tracked.** The root `.gitignore` `*.lock` pattern
@@ -168,7 +172,7 @@ leave them in place. `checkpoints/README.md` repeats this.
 
 ```sh
 # Python (no install needed)
-PYTHONPATH=src python3 -m unittest discover -s tests   # expect: Ran 77 tests ... OK
+PYTHONPATH=src python3 -m unittest discover -s tests   # expect: Ran 93 tests ... OK
 pytest -q                                              # expect: 77 passed
 
 # Rust controller
@@ -199,9 +203,9 @@ and recovery rather than copied directories.
 no committed statement of the next feature milestone. The two candidates the
 repository actually supports are:
 
-1. **Document milestones 7A, 7B and the acceptance workflow** in
-   `docs/milestones/`, closing the gap in §6.1. This is the natural next step and
-   needs no new behaviour.
+1. **Document the acceptance workflow and the compiler repair rule**, the
+   same way 7A and 7B were just done: real tests first, then the milestone
+   doc written from what the tests actually proved. Closes the rest of §6.1.
 2. **Retire the checkpoint snapshots** by establishing real Git checkpoints
    (§7), completing the "Git is the recovery mechanism" goal.
 

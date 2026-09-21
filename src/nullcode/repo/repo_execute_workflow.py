@@ -207,14 +207,21 @@ def related_context(checkout, target, selected, tests):
     )
 
 
+# Guidance only. The minimum-count floor, the original-suite regression and
+# the added-coverage comparison remain the enforcement mechanism; this just
+# stops the model reaching for a replacement suite in the first place.
+PRESERVE_TESTS = "Keep every existing @Test method; add new ones alongside them.\n"
+
+
 def edit_prompt(task, plan, target, source, related=""):
     name = pathlib.PurePosixPath(target).name
     prompt = (
         f"Return ONLY complete {name}, no fences/prose or other files. "
         "Follow TASK; preserve existing behavior/API except requested additions.\n"
-        f"TASK:\n{task}\nPLAN:\n{target_plan(plan, target)}\n"
-        f"REFERENCE ONLY:\n{related}\n"
-        f"TARGET {target}:\n{compact_prompt_java(source)}\n"
+        + (PRESERVE_TESTS if target.startswith("src/test/java/") else "")
+        + f"TASK:\n{task}\nPLAN:\n{target_plan(plan, target)}\n"
+        + f"REFERENCE ONLY:\n{related}\n"
+        + f"TARGET {target}:\n{compact_prompt_java(source)}\n"
     )
     if len(prompt.encode("utf-8")) > 2000:
         raise ValueError("Complete edit context exceeds 2000 bytes; nothing truncated")
@@ -233,9 +240,10 @@ def repair_edit_prompt(task, plan, target, source, diagnostic, repair_reason, re
     prompt = (
         f"Return ONLY complete {name}, no fences/prose or other files. "
         "Follow TASK; preserve existing behavior. Code/tests may be wrong.\n"
-        f"TASK:\n{task}\nFAILURE:\n{diagnostic}\n"
-        f"REFERENCE ONLY:\n{related}\n"
-        f"TARGET:\n{compact_prompt_java(source)}\n"
+        + (PRESERVE_TESTS if target.startswith("src/test/java/") else "")
+        + f"TASK:\n{task}\nFAILURE:\n{diagnostic}\n"
+        + f"REFERENCE ONLY:\n{related}\n"
+        + f"TARGET:\n{compact_prompt_java(source)}\n"
     )
     size = len(prompt.encode("utf-8"))
     if size > 2000:
@@ -279,7 +287,85 @@ def extract_java(answer, target):
 
 
 
-def verification_diagnostic(result):
+def executed_test_count(junit):
+    """Executed JUnit cases, or None when the evidence is unusable.
+
+    Mirrors gradle_workflow.verify()'s floor arithmetic exactly: skipped
+    cases never count as executed.
+    """
+    tests = junit.get("tests")
+    skipped = junit.get("skipped", 0)
+
+    if type(tests) is not int or type(skipped) is not int:
+        return None
+
+    return tests - skipped
+
+
+def insufficient_test_count(result, minimum):
+    """True when a candidate built and ran cleanly but executed too few tests.
+
+    gradle_workflow.verify() folds the minimum-test floor into `passed` but
+    not into `repairable`, which only fires for a conventional failing JUnit
+    run (test exit 1 with failures). A candidate that compiles, runs green
+    and simply deletes coverage therefore arrives here as
+    passed=False/repairable=False and used to terminate the workflow.
+
+    That shared flag is also consumed by gradle-junit-v1 and
+    accepted-java-v1, so repo-execute-v1 classifies this one failure reason
+    locally rather than changing the shared contract. Nothing here relaxes a
+    gate: the floor, the original-suite regression and the added-coverage
+    comparison all still run afterwards, unchanged.
+    """
+    if result.get("passed") or result.get("infrastructure_error"):
+        return False
+
+    if type(minimum) is not int:
+        return False
+
+    compile_result = result.get("compile") or {}
+    tests_result = result.get("tests") or {}
+    junit = result.get("junit") or {}
+
+    if compile_result.get("exit_code") != 0 or compile_result.get("timed_out"):
+        return False
+
+    if tests_result.get("exit_code") != 0 or tests_result.get("timed_out"):
+        return False
+
+    failures = junit.get("failures")
+
+    if type(failures) is not int or failures != 0:
+        return False
+
+    # verify() tolerates an already-gone container and nothing else. Any
+    # other cleanup trouble is infrastructure, not a repairable candidate.
+    cleanup = result.get("cleanup") or {}
+
+    if cleanup.get("exit_code") and "No such container" not in str(
+        cleanup.get("log") or ""
+    ):
+        return False
+
+    executed = executed_test_count(junit)
+
+    return executed is not None and executed < minimum
+
+
+def candidate_repairable(result, minimum, selected_tests):
+    """Repair eligibility for the repo-execute-v1 candidate stage only.
+
+    The shared flag still decides on its own terms; this only adds the
+    insufficient-executed-count case, and only when the selection already
+    contains an editable test file that could restore the missing coverage.
+    """
+    if result.get("repairable"):
+        return True
+
+    return bool(selected_tests) and insufficient_test_count(result, minimum)
+
+
+def verification_diagnostic(result, minimum=None):
     parts = []
 
     junit = result.get("junit") or {}
@@ -343,6 +429,21 @@ def verification_diagnostic(result):
 
             if fallback:
                 parts.append("Compile: " + " | ".join(fallback[-8:]))
+
+    # Gradle succeeds, JUnit reports no failures and diagnostics are empty
+    # when the candidate simply deleted coverage, so none of the branches
+    # above fire. Say what actually went wrong instead of falling through to
+    # the generic message, which gives repair selection nothing to act on.
+    executed = executed_test_count(junit)
+
+    if type(minimum) is int and executed is not None and executed < minimum:
+        parts.append(
+            f"Executed tests: {executed}; at least {minimum} must run. "
+            "The candidate suite runs fewer cases than required, which "
+            "happens when existing tests are replaced instead of extended. "
+            "Restore every original test case and add the new coverage "
+            "alongside them."
+        )
 
     diagnostic = "\n".join(parts).strip()
 
@@ -685,7 +786,19 @@ def run_job(store, job, generate_fn=generate, verify_fn=verify_gradle, artifacts
             if candidate_result["passed"]:
                 break
 
-            if not candidate_result.get("repairable"):
+            # Insufficient executed-test count arrives from the shared
+            # verifier as repairable=False; classify it here so the existing
+            # bounded repair can restore the coverage the candidate deleted.
+            short_count = insufficient_test_count(
+                candidate_result,
+                config["minimum_tests"],
+            )
+
+            if not candidate_repairable(
+                candidate_result,
+                config["minimum_tests"],
+                selected_tests,
+            ):
                 result = {
                     "passed": False,
                     "stage": "candidate-verification",
@@ -717,7 +830,10 @@ def run_job(store, job, generate_fn=generate, verify_fn=verify_gradle, artifacts
             repair_dir = root / f"attempt-{attempt_number}"
             repair_dir.mkdir()
 
-            diagnostic = verification_diagnostic(candidate_result)
+            diagnostic = verification_diagnostic(
+                candidate_result,
+                config["minimum_tests"],
+            )
 
             (repair_dir / "diagnostic.txt").write_text(
                 diagnostic + "\n",
@@ -736,10 +852,16 @@ def run_job(store, job, generate_fn=generate, verify_fn=verify_gradle, artifacts
                 artifact_dir=str(repair_dir),
             )
 
+            # A production edit cannot restore deleted test cases, and the
+            # repair budget is only two attempts. Offer the already-selected
+            # test files alone for this failure reason. This removes a
+            # choice; it never adds edit authority.
+            repair_candidates = selected_tests if short_count else selected
+
             prompt = repair_selection_prompt(
                 spec["task"],
                 plan,
-                selected,
+                repair_candidates,
                 diagnostic,
             )
 
@@ -766,7 +888,7 @@ def run_job(store, job, generate_fn=generate, verify_fn=verify_gradle, artifacts
 
             repair_target, repair_reason = validate_repair_selection(
                 repair_data,
-                selected,
+                repair_candidates,
             )
 
             repair_selection = {

@@ -178,6 +178,24 @@ HYBRID_API_COMPILE_FAILURE = {
     'compile': {'exit_code': 1, 'timed_out': False, 'log': HYBRID_API_COMPILE_LOG},
 }
 
+# A semantic re-plan is NOT a repair: it answers a candidate that verified
+# cleanly but demonstrated no behavioral delta. The diagnosis reply names a
+# different behavior to aim at; the plan that follows is validated against the
+# same selected files as the first one.
+SEMANTIC_DIAGNOSIS = (
+    '{"diagnosis": "The pinned base already trims leading and trailing '
+    'hyphens, so the added case proves nothing.", '
+    '"behavior": "Collapse runs of separators inside the slug as well."}'
+)
+
+REPLAN_PLAN = (
+    '{"summary": "Collapse internal separator runs.", '
+    '"files": [{"path": "' + PROD_TARGET + '", "reason": "Collapse separators"}, '
+    '{"path": "' + TEST_TARGET + '", "reason": "Cover the collapsed runs"}], '
+    '"steps": ["Collapse separator runs", "Keep the trimming behavior"], '
+    '"risks": []}'
+)
+
 REPAIR_TEST_FILE = '{"file": "' + TEST_TARGET + '", "reason": "Baseline tests were dropped"}'
 REPAIR_PROD_FILE = '{"file": "' + PROD_TARGET + '", "reason": "Blame the implementation"}'
 
@@ -905,10 +923,13 @@ class BehavioralDeltaTests(ExecuteWorkflowHarness):
         '{ assertEquals("aeo", Slugs.slugifyUnicode("\u00e4\u00eb\u00f6")); }\n'
     )
 
-    def delta_evidence(self, job_id):
+    def delta_evidence(self, job_id, attempt=3):
+        """Behavioral-delta evidence for a candidate generation: attempt 3 is
+        the first candidate, attempt 8 the one a semantic re-plan produced."""
         workdir = self.root / 'jobs' / f'workflow-{job_id}'
         return json.loads(
-            (workdir / 'attempt-3' / 'behavioral-delta.json').read_text(encoding='utf-8')
+            (workdir / f'attempt-{attempt}' / 'behavioral-delta.json').read_text(
+                encoding='utf-8')
         )
 
     # ------------------------------------------------------------------
@@ -916,14 +937,22 @@ class BehavioralDeltaTests(ExecuteWorkflowHarness):
     # ------------------------------------------------------------------
 
     def test_workflow_26_fixture_is_rejected_with_no_behavioral_delta(self):
+        # One bounded semantic re-plan runs first; when the replacement
+        # candidate ALSO shows no delta, the budget is spent and the workflow
+        # terminates on the same terminal state as before.
         self.pin_base_production(WORKFLOW_26_BASE_PROD)
         job_id, result, _ = self.run_case(
             answers=[SELECTION, PLAN, WORKFLOW_26_PROD,
+                     self.added_case_test(self.HYPHEN_CASE),
+                     SEMANTIC_DIAGNOSIS, REPLAN_PLAN, WORKFLOW_26_PROD,
                      self.added_case_test(self.HYPHEN_CASE)],
             verify_results=[
                 {'passed': True, 'junit': {'tests': 13, 'failures': 0}},
                 {'passed': True, 'junit': {'tests': 12}},
                 HYBRID_NO_DELTA,  # the added test also passes against base
+                {'passed': True, 'junit': {'tests': 13, 'failures': 0}},
+                {'passed': True, 'junit': {'tests': 12}},
+                HYBRID_NO_DELTA,  # and so does the re-planned candidate's
             ],
         )
 
@@ -935,9 +964,12 @@ class BehavioralDeltaTests(ExecuteWorkflowHarness):
         self.assertIn('pinned-base production', result['error'])
         self.assertIn('behavioral delta', result['error'])
 
-        evidence = self.delta_evidence(job_id)
+        evidence = self.delta_evidence(job_id, attempt=8)
         self.assertEqual(evidence['classification'], NO_BEHAVIORAL_DELTA)
         self.assertFalse(evidence['distinguishing'])
+        self.assertEqual(evidence['semantic_replan_attempt'], 1)
+        self.assertEqual(evidence['semantic_replan_outcome'],
+                         'replan-exhausted-no-delta')
 
         # Queryable from the stored attempt record, not only from the log.
         final = result['attempts'][-1]
@@ -949,8 +981,13 @@ class BehavioralDeltaTests(ExecuteWorkflowHarness):
         self.pin_base_production(WORKFLOW_26_BASE_PROD)
         job_id, result, _ = self.run_case(
             answers=[SELECTION, PLAN, WORKFLOW_26_PROD,
+                     self.added_case_test(self.HYPHEN_CASE),
+                     SEMANTIC_DIAGNOSIS, REPLAN_PLAN, WORKFLOW_26_PROD,
                      self.added_case_test(self.HYPHEN_CASE)],
             verify_results=[
+                {'passed': True, 'junit': {'tests': 13, 'failures': 0}},
+                {'passed': True, 'junit': {'tests': 12}},
+                HYBRID_NO_DELTA,
                 {'passed': True, 'junit': {'tests': 13, 'failures': 0}},
                 {'passed': True, 'junit': {'tests': 12}},
                 HYBRID_NO_DELTA,

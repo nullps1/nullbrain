@@ -6,6 +6,13 @@ import re
 
 from nullcode.core.review_java import review_source
 from nullcode.gradle.gradle_workflow import inspect
+from nullcode.repo.repo_execute_workflow import (
+    CONTINUE,
+    DISTINGUISHING_CLASSIFICATIONS,
+    evidence_level,
+    evidence_summary,
+    policy_decision,
+)
 from nullcode.repo.repo_plan_workflow import validate_plan
 from nullcode.repo.repo_workflow import git
 
@@ -47,6 +54,33 @@ def _verification(record, minimum, label):
     if not re.fullmatch(r'sha256:[0-9a-f]{64}', record.get('image_id', '')):
         raise ValueError('Missing pinned ' + label + ' build image')
     return executed
+
+
+def _behavioral_delta(result):
+    """The producer's behavioral-delta evidence, re-checked before publishing.
+
+    Publication eligibility is still `status == 'succeeded'`; this adds
+    nothing to what the workflow accepts and removes nothing from it. It only
+    refuses to publish a record whose novelty evidence is absent, is not a
+    distinguishing classification, disagrees with its own evidence level, or
+    whose recorded hybrid snapshot is not the state the producer said it was.
+    """
+    delta = result.get('behavioral_delta')
+    if not isinstance(delta, dict):
+        raise ValueError('Missing behavioral-delta evidence')
+    classification = delta.get('classification')
+    level = delta.get('evidence_level')
+    if (classification not in DISTINGUISHING_CLASSIFICATIONS
+            or delta.get('distinguishing') is not True
+            or level != evidence_level(classification)
+            or policy_decision(classification) != CONTINUE):
+        raise ValueError('Behavioral-delta evidence is not distinguishing')
+    manifest = delta.get('manifest') or {}
+    expected = manifest.get('expected_snapshot_sha256')
+    if not isinstance(expected, dict) or not expected \
+            or manifest.get('hybrid_snapshot_sha256') != expected:
+        raise ValueError('Hybrid counterfactual snapshot evidence does not match')
+    return delta, classification, level
 
 
 def prepare_repo_execute(job, artifacts):
@@ -150,6 +184,15 @@ def prepare_repo_execute(job, artifacts):
         if review_source(source, patch)['status'] != 'passed':
             raise ValueError('Current review rules reject: ' + name)
 
+    delta, classification, level = _behavioral_delta(result)
+    replan = result.get('semantic_replan') or {}
+    replan_note = (
+        f"This candidate replaced an earlier one that demonstrated no behavioral "
+        f"delta; it is semantic re-plan {replan.get('attempt')} and was re-verified "
+        "from planning onwards by every gate.\n\n"
+        if replan.get('attempt') else ''
+    )
+
     file_summary = '\n'.join(f'- `{p}`: targeted review passed.' for p in selected)
     body = (
         f"{plan['summary']}\n\nTask: {spec['task']}\n\n"
@@ -158,6 +201,9 @@ def prepare_repo_execute(job, artifacts):
         f"Local validation: candidate and original-test regression compilation and tests passed. "
         f"Executed JUnit cases: {candidate_count} candidate, {baseline_count} original suite. "
         "Both verification containers were removed successfully. Protected files were preserved.\n\n"
+        f"Behavioral-delta evidence: `{classification}`, evidence level **{level}**.\n"
+        f"{evidence_summary(classification)}\n\n"
+        f"{replan_note}"
         f"Verified commit: `{commit}`\n\nBase commit: `{base}`\n\n"
         f"Java build image: `{candidate['image_id']}`\n\nDiff SHA-256: `{patch_hash}`\n\n"
         "Targeted text checks are not a comprehensive correctness or security review. "

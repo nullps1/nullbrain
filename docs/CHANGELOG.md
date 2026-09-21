@@ -9,6 +9,43 @@ milestone 6 are ordered by increment, not by date.
 
 ## Unreleased
 
+### Milestone 7B.1: behavioral-delta evidence hardening — 2026-09-21
+
+- Record an explicit `evidence_level` with every behavioral-delta result:
+  `behavioral` for a candidate suite that fails against pinned-base
+  production, `structural` for one that cannot be compiled against it. Nothing
+  reports the two as equal-quality evidence any more, and structural evidence
+  states in its own summary that it does not prove runtime behavioral novelty.
+- Choose the API compile-failure policy from a recorded experiment
+  (`tests/test_behavioral_delta_policy.py`) rather than intuition: a legitimate
+  new API and a deliberately trivial one produce identical hybrid evidence, so
+  rejecting structural evidence would reject every legitimate new-API task.
+  Policy A (allow, labelled structural) is selected and documented; Policy B
+  has no robust implementation without a Java/JUnit parser, which stays out of
+  scope.
+- Give a no-behavioral-delta candidate exactly one semantic re-plan, budgeted
+  separately from the unchanged two-attempt repair loop. The superseded
+  candidate is reset to pinned-base content and the replacement re-runs every
+  gate from planning onwards on its own evidence. A repeated no-delta, an
+  invalid diagnosis or a widened plan terminates fail-closed, unchanged.
+- Document, in code and in prose, that the re-plan diagnostic prompt is
+  advisory: scope, verification, coverage, regression, counterfactual and
+  review remain the enforcement.
+- Persist semantic re-plan telemetry (`semantic-replan.json`) and monotonic
+  stage timings (`timing.json`) for every terminal state, so the budget and
+  the counterfactual's cost can be revisited from observed data. No
+  performance threshold is introduced.
+- Broaden validation: multi-file hybrids (2+1, 1+2 and 2+2), a 48-case
+  eight-file lab, legitimate and trivial new-API fixtures, and adversarial
+  test-side logic fixtures.
+- Record the test-side logic risk as a known limitation with concrete
+  evidence, plus an advisory, non-gating diff statistic. No blanket
+  prohibition on test helpers was introduced.
+- Publisher stays draft-only and `succeeded`-gated; it now refuses records
+  whose novelty evidence is missing or inconsistent and states the evidence
+  level in the preview. Suite: 171 tests, up from 133. Live Pi smoke test
+  still outstanding. See [7B.1](milestones/MILESTONE-7B-1.md).
+
 ### Milestone 7B hardening: behavioral-novelty validation — 2026-09-21
 
 - Add a behavioral-delta counterfactual stage to `repo-execute-v1`, between the

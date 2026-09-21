@@ -40,7 +40,7 @@ state and the next intended milestone.
 | Gradle profile | `src/nullcode/gradle/` | Offline Gradle/JUnit verification and the approved build templates. |
 | Publishing | `src/nullcode/publish/` | Acceptance preparation/checking and explicit GitHub draft-PR delivery. |
 | Fixtures | `src/nullcode/fixtures/` | Generators for the local Git repositories the smoke tests use. |
-| Tests | `tests/` | 77 unittest cases: real Git and SQLite, simulated inference and Docker. |
+| Tests | `tests/` | 171 unittest cases: real Git and SQLite, simulated inference and Docker. |
 | Deployment | `compose/`, `deploy/` | Compose files for the controller and Ollama; the worker systemd unit. |
 | Documentation | `docs/` | Architecture, current state, changelog and the milestone record. |
 
@@ -90,7 +90,7 @@ acceptance profiles: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
 ## Running the tests
 
 ```sh
-PYTHONPATH=src python3 -m unittest discover -s tests   # 77 tests
+PYTHONPATH=src python3 -m unittest discover -s tests   # 171 tests
 pytest                                                 # same 77, config in pyproject.toml
 cd rust && cargo test                                  # 3 controller tests
 ```

@@ -15,6 +15,7 @@ historical record.
 | [MILESTONE-7B.md](MILESTONE-7B.md) | Planned, bounded multi-file execution |
 | [MILESTONE-7C-2.md](MILESTONE-7C-2.md) | Multi-file draft PR publishing |
 | [MILESTONE-7B-HARDENING.md](MILESTONE-7B-HARDENING.md) | Behavioral-novelty validation |
+| [MILESTONE-7B-1.md](MILESTONE-7B-1.md) | Behavioral-delta evidence hardening |
 
 Milestone 1 is documented in [`rust/README.md`](../../rust/README.md).
 

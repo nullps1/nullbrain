@@ -1,17 +1,47 @@
 # NullCode project state
 
-**Updated:** 2026-09-21, Milestone 7C-2 implementation and Linux review.
-**Implementation commits:** `34fc203` (7C-2), then the Linux-review hardening
-commit on top of it. Identified by commit rather than by branch, because the
-development branches are deleted once merged.
-**Implementation base:** `4013fbd` (original-suite coverage-gate fix).
+**Updated:** 2026-09-21, Milestone 7B hardening (behavioral-novelty
+validation).
+**Implementation commits:** `34fc203` (7C-2), its Linux-review hardening
+commit, `88c015b` (insufficient-test-count repair), then the behavioral-delta
+commit described below. Identified by commit rather than by branch, because
+the development branches are deleted once merged.
+**Implementation base:** `f5a5db6`.
 
 This is the authoritative handoff document. Read it before changing anything.
 The current update below supersedes the retained refactor-era snapshot in
 sections 1–9. Historical test counts, branch/history statements, and next-step
 proposals in those sections are not current. Section 10's constraints remain.
 
-## Current update: 7C-2
+## Current update: 7B hardening — behavioral-novelty validation
+
+`repo-execute-v1` could reach `succeeded` without the candidate changing any
+production behavior: every gate passed on a cosmetic production rewrite plus a
+test the pinned base already satisfied (Workflow 26). A behavioral-delta
+counterfactual stage now runs between the added-coverage comparison and
+targeted review. It builds a hybrid workspace — pinned-base production with
+only the approved candidate test sources overlaid, pinned to the verifier's
+own snapshot hashes — and runs the candidate suite against it. A suite that
+fully passes there is rejected on a new terminal state,
+`rejected-no-behavioral-delta`; a test failure, or a test-compilation failure
+caused by API absent from the base, is the distinguishing evidence that lets
+the workflow continue; anything else fails closed as infrastructure failure.
+
+No existing gate changed: the minimum-test floor, the baseline regression, the
+editable scope, the repair budget and 7C-2 publishing are all untouched.
+Publication is already gated on `status == 'succeeded'`, so nothing is
+publishable from a rejected workflow. See
+[7B hardening](milestones/MILESTONE-7B-HARDENING.md).
+
+The suite is **133 tests**, up from 120, and passes on Linux (x86-64, Python
+3.11.15, Git 2.43). Three mutations of the new gate were applied to throwaway
+copies to confirm the tests fail without it. **The live smoke test has not
+been run**: this environment has no Docker daemon and no Ollama, so no real
+Gradle/JUnit hybrid container and no real inference has executed. Both the
+genuine-change run and the Workflow 26 reproduction are still outstanding on
+the Pi.
+
+## Previous update: 7C-2
 
 Successful `repo-execute-v1` workflows can now use the existing explicit
 publisher CLI for a local preview and optional draft PR. Profile-specific
@@ -80,7 +110,9 @@ The test counts are identical before and after the reorganization.
 - Offline Gradle/JUnit verification against approved build templates, with JUnit
   XML parsed for a minimum non-skipped passing test count.
 - Read-only repository planning (`repo-plan-v1`) producing a validated JSON plan.
-- Planned, bounded multi-file execution (`repo-execute-v1`).
+- Planned, bounded multi-file execution (`repo-execute-v1`), including
+  differential behavioral-novelty validation: the candidate test suite must
+  not fully pass against pinned-base production.
 - Acceptance-gated production edits against committed, human-reviewed tests
   (`accepted-java-v1`), including hash-based tamper detection.
 - Explicit, human-initiated GitHub **draft** PR delivery with a preview mode that

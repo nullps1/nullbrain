@@ -1,0 +1,9 @@
+[
+  "java_workflow.py",
+  "accepted_workflow.py",
+  "prepare_acceptance.py",
+  "test_accepted_workflow.py",
+  "check_acceptance.py",
+  "acceptance/contract.json",
+  "acceptance/TextStatsAcceptanceTest.java"
+]

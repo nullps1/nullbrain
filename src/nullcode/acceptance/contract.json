@@ -1,0 +1,7 @@
+{
+  "profile": "accepted-java-v1",
+  "target": "src/main/java/lab/TextStats.java",
+  "task": "Add public static int countWordsLongerThan(String text, int minLength). Count whitespace-separated words with Java String.length() strictly > minLength. Empty/blank input returns 0. Null text or negative minLength throws IllegalArgumentException. For 'one two three', thresholds 2,3,4,5 give 3,1,1,0. Preserve countWords. Implement production only; acceptance tests are fixed.",
+  "acceptance_tests": ["src/test/java/lab/TextStatsAcceptanceTest.java"],
+  "minimum_tests": 24
+}

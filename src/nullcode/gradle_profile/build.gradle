@@ -1,0 +1,19 @@
+plugins { id 'java' }
+repositories { mavenCentral() }
+dependencies {
+    testImplementation 'org.junit.jupiter:junit-jupiter:5.11.4'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher:1.11.4'
+}
+java { sourceCompatibility = JavaVersion.VERSION_21; targetCompatibility = JavaVersion.VERSION_21 }
+test {
+    useJUnitPlatform()
+    maxHeapSize = '256m'
+    maxParallelForks = 1
+    jvmArgs '-XX:ActiveProcessorCount=1'
+}
+tasks.register('cacheDependencies') {
+    doLast {
+        configurations.testCompileClasspath.files
+        configurations.testRuntimeClasspath.files
+    }
+}

@@ -1,0 +1,24 @@
+name: nullcode
+services:
+  controller:
+    build: .
+    restart: unless-stopped
+    network_mode: host
+    user: "1001:1001"
+    environment:
+      NULLCODE_DB: /data/nullcode.sqlite3
+      OLLAMA_URL: http://127.0.0.1:11434
+      OLLAMA_MODEL: qwen2.5-coder:7b
+    volumes:
+      - /srv/nullbrain/data/nullcode:/data
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    mem_limit: 512m
+    cpus: 1.0
+    pids_limit: 64
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"

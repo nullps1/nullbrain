@@ -1,0 +1,18 @@
+[Unit]
+Description=NullCode Java workflow worker
+After=docker.service network.target
+Requires=docker.service
+
+[Service]
+Type=simple
+User=null
+Group=null
+SupplementaryGroups=docker
+WorkingDirectory=/srv/nullbrain/src/nullcode
+ExecStart=/usr/bin/python3 -u /srv/nullbrain/src/nullcode/java_workflow.py run
+Restart=on-failure
+RestartSec=5
+UMask=0027
+
+[Install]
+WantedBy=multi-user.target

@@ -247,19 +247,17 @@ and `compose/ollama.compose.yml`, and the controller build context is `rust/`.
 | 7B hardening | Behavioral-novelty validation | [`milestones/MILESTONE-7B-HARDENING.md`](milestones/MILESTONE-7B-HARDENING.md) |
 | 7B.1 | Behavioral-delta evidence hardening | [`milestones/MILESTONE-7B-1.md`](milestones/MILESTONE-7B-1.md) |
 | 7C-2 | Multi-file draft PR publishing | [`milestones/MILESTONE-7C-2.md`](milestones/MILESTONE-7C-2.md) |
-| — | Acceptance-gated production edits (`accepted-java-v1`) | *no document — see `accepted_workflow.py`* |
-| — | `javac`-driven repair rule (`javac-string-array-stream-loop-v1`) | *no document — see `compiler_repair_rule`* |
+| — | Acceptance-gated production edits (`accepted-java-v1`) | [`milestones/ACCEPTED-JAVA-V1.md`](milestones/ACCEPTED-JAVA-V1.md) |
+| — | `javac`-driven repair rule (`javac-string-array-stream-loop-v1`) | [`milestones/JAVAC-REPAIR-RULE.md`](milestones/JAVAC-REPAIR-RULE.md) |
 
 ## 6. Known limitations and unresolved issues
 
-1. **The acceptance workflow and the compiler repair rule still have no
-   milestone document.** 7A and 7B are now documented in
-   `docs/milestones/`, each backed by a dedicated test file
-   (`test_repo_plan_workflow.py`, `test_repo_execute_workflow.py`) that
-   exercises their orchestration with fake inference — not just a source
-   reading. The acceptance workflow (`accepted-java-v1`) and the
-   `javac-string-array-stream-loop-v1` repair rule remain undocumented,
-   though both do have real test coverage via `test_accepted_workflow.py`.
+1. **Documentation coverage is now complete for the currently named workflow
+   increments and the special javac repair rule.** The acceptance workflow and
+   `javac-string-array-stream-loop-v1` are documented in
+   `docs/milestones/ACCEPTED-JAVA-V1.md` and
+   `docs/milestones/JAVAC-REPAIR-RULE.md`. Their tests remain in
+   `tests/test_accepted_workflow.py`.
 2. **Early pre-Git states are not represented by commits.** The repository now
    has normal Git history from the initial backup forward, but the two retained
    checkpoint directories still represent states from before that history. See
@@ -362,9 +360,8 @@ consume a real issue as task input, run the same bounded planning/execution and
 verification path, and remain draft-PR-only with human review/merge. That work
 is not implemented yet.
 
-Documentation debt remains worth closing in parallel: the acceptance workflow
-and the `javac-string-array-stream-loop-v1` repair rule still lack dedicated
-milestone documents, and the pre-Git checkpoints remain retained.
+The main remaining documentation/history debt is the retained pre-Git checkpoint
+material; current named workflow behavior now has repository documentation.
 
 ## 10. Constraints for anyone continuing this work
 

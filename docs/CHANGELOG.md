@@ -9,6 +9,19 @@ milestone 6 are ordered by increment, not by date.
 
 ## Unreleased
 
+### Documentation synchronization — 2026-09-21
+
+- Refresh README, architecture, project state and 7B.1 records against current
+  `main` after the live Pi validation.
+- Replace stale refactor-era claims about test counts, Git history, deployment
+  certainty and outstanding smoke tests with current or explicitly historical
+  wording.
+- Document the already-implemented `accepted-java-v1` workflow and the narrow
+  `javac-string-array-stream-loop-v1` repair rule, closing the remaining named
+  workflow documentation gaps.
+- Record the agreed near-term direction without implementing it: 7C-1
+  model-proposed/human-granted scope, followed by GitHub issue/task ingestion.
+
 ### Milestone 7B.1: behavioral-delta evidence hardening — 2026-09-21
 
 - Record an explicit `evidence_level` with every behavioral-delta result:
@@ -43,8 +56,12 @@ milestone 6 are ordered by increment, not by date.
   prohibition on test helpers was introduced.
 - Publisher stays draft-only and `succeeded`-gated; it now refuses records
   whose novelty evidence is missing or inconsistent and states the evidence
-  level in the preview. Suite: 171 tests, up from 133. Live Pi smoke test
-  still outstanding. See [7B.1](milestones/MILESTONE-7B-1.md).
+  level in the preview. Suite: 171 tests, up from 133.
+- After merge to `main` (`84f0dc1`), validate 7B.1 on the Raspberry Pi: 171/171
+  tests pass; bounded no-delta semantic re-plan/exhaustion, behavioral novelty,
+  structural API novelty, and hybrid snapshot integrity are exercised live.
+  Existing repair, scope, regression, publishing and human-acceptance boundaries
+  remain intact. See [7B.1](milestones/MILESTONE-7B-1.md).
 
 ### Milestone 7B hardening: behavioral-novelty validation — 2026-09-21
 

@@ -16,6 +16,8 @@ historical record.
 | [MILESTONE-7C-2.md](MILESTONE-7C-2.md) | Multi-file draft PR publishing |
 | [MILESTONE-7B-HARDENING.md](MILESTONE-7B-HARDENING.md) | Behavioral-novelty validation |
 | [MILESTONE-7B-1.md](MILESTONE-7B-1.md) | Behavioral-delta evidence hardening |
+| [ACCEPTED-JAVA-V1.md](ACCEPTED-JAVA-V1.md) | Acceptance-gated one-file production workflow |
+| [JAVAC-REPAIR-RULE.md](JAVAC-REPAIR-RULE.md) | Narrow javac `String[]#stream()` repair guidance |
 
 Milestone 1 is documented in [`rust/README.md`](../../rust/README.md).
 
@@ -53,10 +55,8 @@ For commands that work against the current layout, see
 
 Prefix Python commands with `PYTHONPATH=src` unless the package is installed.
 
-## Undocumented increments
+## Documentation status
 
-7A and 7B were written up in `44e36aa` and are listed above. The
-`accepted-java-v1` acceptance workflow and the
-`javac-string-array-stream-loop-v1` repair rule are implemented and tested but
-still have **no milestone document**. See `docs/PROJECT_STATE.md` §6.1 —
-writing them is the clearest remaining documentation gap.
+All currently implemented named workflow increments and the special javac repair
+rule now have repository documentation. Historical documents intentionally keep
+the commands and validation boundaries from the time they were written.

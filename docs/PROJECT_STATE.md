@@ -1,12 +1,12 @@
 # NullCode project state
 
-**Updated:** 2026-09-21, Milestone 7B.1 (behavioral-delta evidence hardening).
-**Implementation commits:** `34fc203` (7C-2), its Linux-review hardening
-commit, `88c015b` (insufficient-test-count repair), `a48d419` (the
-behavioral-delta gate), then the 7B.1 commit described below. Identified by
-commit rather than by branch, because the development branches are deleted
-once merged.
-**Implementation base:** `80e47cb`.
+**Updated:** 2026-09-21, after Milestone 7B.1 merged to `main`.
+**Current main:** `84f0dc1` (merge of Milestone 7B.1).
+**Key implementation commits:** `34fc203` (7C-2 publisher), `53e09bb` / `6c78080`
+(7C-2 hardening/docs), `88c015b` (insufficient-test-count repair), `a48d419`
+(behavioral-delta gate), and `3c7e724` (7B.1 evidence hardening + semantic
+re-plan). Development branches are deleted after merge; commits are the durable
+references.
 
 This is the authoritative handoff document. Read it before changing anything.
 The current update below supersedes the retained refactor-era snapshot in
@@ -61,11 +61,13 @@ snapshot integrity, fail-closed infrastructure handling, draft-only
 publication and human acceptance are all unchanged. The publisher additionally
 refuses records whose novelty evidence is missing or inconsistent.
 
-The suite is **171 tests**, up from 133, and passes on Linux (x86-64, Python
-3.11.15, Git 2.43.0) in 35.9 s. Seven mutations of the new behavior were
-applied to throwaway copies to confirm the tests fail without it. **The live
-smoke test has still not been run**: this environment has no Docker daemon and
-no Ollama. See [7B.1](milestones/MILESTONE-7B-1.md).
+The suite is **171 tests**, up from 133. The implementation was validated on
+Linux with canned inference/container verification, and then exercised on the
+Raspberry Pi after merge with **171/171 tests passing**. Live Pi runs verified
+all three critical novelty paths: bounded no-delta semantic re-plan/exhaustion,
+behavioral evidence, and structural API evidence. Hybrid snapshot integrity and
+the existing repair, scope, regression, publishing, and human-acceptance
+boundaries remained intact. See [7B.1](milestones/MILESTONE-7B-1.md).
 
 ## Previous update: 7B hardening — behavioral-novelty validation
 
@@ -133,7 +135,9 @@ Pi validation is still outstanding.
 
 ## 1. What is known-good today
 
-Verified in this environment at the refactor:
+The table below is the retained **refactor-era baseline**. It is useful for
+historical comparison but is no longer the current validation summary. Current
+validation is recorded in the update sections above and in the milestone docs.
 
 | Check | Result |
 | --- | --- |
@@ -184,7 +188,7 @@ src/nullcode/
   fixtures/  create_fixture.py  create_gradle_fixture.py
   acceptance/  contract.json  TextStatsAcceptanceTest.java   (package data)
 rust/        Cargo.toml  src/main.rs  Dockerfile  README.md
-tests/       6 files, 77 unittest cases
+tests/       11 test modules, 171 unittest cases
 scripts/     smoke.py
 ```
 
@@ -207,11 +211,11 @@ Dependency direction is documented and verified in
   `nullcode-gradle:8.14.3-jdk21`.
 - Python 3.11+, standard library only. No third-party Python dependencies.
 
-### ⚠️ Deployment action required after this refactor
+### Deployment note from the repository reorganization
 
-The systemd unit changed because the worker is now a package module. The live
-host still runs the old unit. **The repository was changed; the host was not.**
-Apply on the Pi when convenient:
+The commands below are retained as the migration procedure from the old flat
+layout. The current repository does not prove whether an individual host still
+needs this step; verify the installed unit before applying it:
 
 ```sh
 sudo systemctl stop nullcode-worker
@@ -243,28 +247,30 @@ and `compose/ollama.compose.yml`, and the controller build context is `rust/`.
 | 7B hardening | Behavioral-novelty validation | [`milestones/MILESTONE-7B-HARDENING.md`](milestones/MILESTONE-7B-HARDENING.md) |
 | 7B.1 | Behavioral-delta evidence hardening | [`milestones/MILESTONE-7B-1.md`](milestones/MILESTONE-7B-1.md) |
 | 7C-2 | Multi-file draft PR publishing | [`milestones/MILESTONE-7C-2.md`](milestones/MILESTONE-7C-2.md) |
-| — | Acceptance-gated production edits (`accepted-java-v1`) | *no document — see `accepted_workflow.py`* |
-| — | `javac`-driven repair rule (`javac-string-array-stream-loop-v1`) | *no document — see `compiler_repair_rule`* |
+| — | Acceptance-gated production edits (`accepted-java-v1`) | [`milestones/ACCEPTED-JAVA-V1.md`](milestones/ACCEPTED-JAVA-V1.md) |
+| — | `javac`-driven repair rule (`javac-string-array-stream-loop-v1`) | [`milestones/JAVAC-REPAIR-RULE.md`](milestones/JAVAC-REPAIR-RULE.md) |
 
 ## 6. Known limitations and unresolved issues
 
-1. **The acceptance workflow and the compiler repair rule still have no
-   milestone document.** 7A and 7B are now documented in
-   `docs/milestones/`, each backed by a dedicated test file
-   (`test_repo_plan_workflow.py`, `test_repo_execute_workflow.py`) that
-   exercises their orchestration with fake inference — not just a source
-   reading. The acceptance workflow (`accepted-java-v1`) and the
-   `javac-string-array-stream-loop-v1` repair rule remain undocumented,
-   though both do have real test coverage via `test_accepted_workflow.py`.
-2. **No Git history to recover from.** The repository has a single commit
-   (`7e077ee`). See [§7](#7-checkpoint-snapshots).
+1. **Documentation coverage is now complete for the currently named workflow
+   increments and the special javac repair rule.** The acceptance workflow and
+   `javac-string-array-stream-loop-v1` are documented in
+   `docs/milestones/ACCEPTED-JAVA-V1.md` and
+   `docs/milestones/JAVAC-REPAIR-RULE.md`. Their tests remain in
+   `tests/test_accepted_workflow.py`.
+2. **Early pre-Git states are not represented by commits.** The repository now
+   has normal Git history from the initial backup forward, but the two retained
+   checkpoint directories still represent states from before that history. See
+   [§7](#7-checkpoint-snapshots).
 3. **`Cargo.lock` is not tracked.** The root `.gitignore` `*.lock` pattern
    (intended for lock files generally) also matches `Cargo.lock`, while
    `rust/README.md` says the resolved lock file should be preserved. This is a
    pre-existing contradiction; it was **not** changed in the refactor.
-4. **Docker-dependent paths are untested here.** The Java/Gradle container
-   builds and real model inference cannot run in this environment; the Python
-   suite simulates them. Real behaviour must be exercised on the Pi.
+4. **Most automated tests still simulate inference and Docker.** The Python
+   suite uses real Git and SQLite but canned inference/container verification.
+   Milestone 7B.1 has additionally been exercised live on the Pi, including the
+   no-delta re-plan path and both novelty evidence paths; that live validation
+   does not make every profile or failure mode end-to-end proven.
 5. **Review rules are narrow.** Three text-based checks for the Numbers profile.
    Not a parser, not a static analyser, not a security review.
 6. **Single worker, single job.** No concurrency; interrupted workflows become
@@ -286,10 +292,10 @@ and `compose/ollama.compose.yml`, and the controller build context is `rust/`.
    but it cannot prove the assertion is meaningful, and the targeted review
    rules do not read test helpers. Human acceptance remains the control. See
    [7B.1](milestones/MILESTONE-7B-1.md) §6.
-11. **Stage timings are orchestration-only.** `timing.json` is written for
-   every workflow, but no run in a development environment has timed a real
-   Gradle compile or test. No optimization threshold has been set, and none
-   should be derived from these numbers.
+11. **Stage timing evidence is still too sparse for optimization policy.**
+   `timing.json` is written for every workflow and real Pi workflow timings now
+   exist, but the sample is too small and task-specific to justify a threshold
+   or optimization target.
 
 ## 7. Checkpoint snapshots
 
@@ -302,9 +308,10 @@ the working tree before this repository had useful Git history:
 | `stream-rule-backup-75cee6743c604cdf82d16cbbf9da5c4d/` | `accepted_workflow.py` and `test_accepted_workflow.py` as they were **before** the `javac-string-array-stream-loop-v1` repair rule was added. |
 
 **They were moved out of the source tree but deliberately not deleted, and no
-Git tags were created.** The repository contains exactly one commit, so no
-commit represents either pre-install state; tagging `HEAD` would point a
-"checkpoint" tag at the state *after* both increments, which would be wrong.
+Git tags were created for those pre-install states.** The repository now has
+normal history after the initial backup, but no commit represents either
+checkpoint state; tagging a modern `HEAD` would still point at the wrong
+content.
 Deleting them would destroy the only record of those states.
 
 They can be retired once the corresponding states are verifiably reachable from
@@ -316,8 +323,8 @@ leave them in place. `checkpoints/README.md` repeats this.
 
 ```sh
 # Python (no install needed)
-PYTHONPATH=src python3 -m unittest discover -s tests   # expect: Ran 93 tests ... OK
-pytest -q                                              # expect: 77 passed
+PYTHONPATH=src python3 -m unittest discover -s tests   # expect: Ran 171 tests ... OK
+pytest -q                                              # expect: 171 passed
 
 # Rust controller
 cd rust && cargo test && cargo check                   # expect: 3 passed
@@ -339,23 +346,22 @@ PYTHONPATH=src python3 -m nullcode.core.java_workflow wait <id>
 
 ## 9. Active direction and next milestone
 
-**Active direction:** consolidating the project into a maintainable platform —
-this refactor, the documentation set, and Git as the source of truth for history
-and recovery rather than copied directories.
+**Active direction:** move from human-preselected edit scope toward controlled
+task autonomy without weakening the existing deterministic gates.
 
-**Next intended milestone, as established by the repository itself:** there is
-no committed statement of the next feature milestone. The two candidates the
-repository actually supports are:
+**Next intended milestone: 7C-1 — model-proposed scope, human-granted scope.**
+The current design lives in
+[`milestones/PROPOSAL-7C-1.md`](milestones/PROPOSAL-7C-1.md) and is still a
+proposal, not implemented behavior. The invariant is unchanged: a model may
+propose a scope, but only a human can grant it by changing committed policy.
 
-1. **Document the acceptance workflow and the compiler repair rule**, the
-   same way 7A and 7B were just done: real tests first, then the milestone
-   doc written from what the tests actually proved. Closes the rest of §6.1.
-2. **Retire the checkpoint snapshots** by establishing real Git checkpoints
-   (§7), completing the "Git is the recovery mechanism" goal.
+After 7C-1, the next planned autonomy step is **GitHub issue/task ingestion**:
+consume a real issue as task input, run the same bounded planning/execution and
+verification path, and remain draft-PR-only with human review/merge. That work
+is not implemented yet.
 
-Anything beyond that — new languages, concurrency, model-driven repository
-browsing, automatic publishing — is *not* established by the repository and
-should be confirmed with the project owner before starting.
+The main remaining documentation/history debt is the retained pre-Git checkpoint
+material; current named workflow behavior now has repository documentation.
 
 ## 10. Constraints for anyone continuing this work
 

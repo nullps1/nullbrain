@@ -366,10 +366,12 @@ Under `/srv/nullbrain/jobs/workflow-<id>/`:
 
 ## 9. Validation
 
-Environment: Linux x86-64, Python 3.11.15, Git 2.43.0. **No Docker daemon and
-no Ollama**, so no real Gradle/JUnit container and no real inference ran; the
-suite uses real Git fixtures, real checkouts, canned model answers and a canned
-verifier, as every earlier milestone's suite does.
+### Development validation
+
+The implementation was first validated on Linux x86-64, Python 3.11.15, Git
+2.43.0. That environment had **no Docker daemon and no Ollama**, so the suite
+used real Git fixtures and checkouts with canned model answers and a canned
+verifier.
 
 | | Tests | Duration |
 | --- | --- | --- |
@@ -383,6 +385,24 @@ and `tests/test_behavioral_delta_evidence.py` (evidence levels, the semantic
 re-plan, timing, multi-file and larger-suite shapes, and the test-side logic
 risk), plus publisher evidence-metadata tests in
 `tests/test_repo_execute_publish.py`.
+
+### Raspberry Pi validation after merge
+
+After `3c7e724` merged to `main` as `84f0dc1`, the milestone was exercised on
+the Raspberry Pi host with the live Nullbrain stack. The Pi validation recorded:
+
+- **171/171 Python tests passing**;
+- a no-behavioral-delta workflow entering the one allowed semantic re-plan and
+  bounded exhaustion behaving as designed;
+- the `behavioral` evidence path succeeding for an assertion-level difference;
+- the `structural` evidence path succeeding for a new-API compile distinction;
+- hybrid snapshot integrity remaining intact;
+- existing repair, scope, baseline-regression, publishing, and human-acceptance
+  boundaries remaining unchanged.
+
+This closes the live-smoke items originally left outstanding by the development
+environment. It does not prove every repository shape or make the known
+structural-evidence/test-side-logic limitations disappear.
 
 ### Mutation testing
 
@@ -418,18 +438,13 @@ temporary directory. Nothing in the repository history was mutated.
 
 ## 11. What remains unproven
 
-* **No live Pi smoke test has been run from this environment**, for this
-  increment or for 7B hardening before it. No real Gradle/JUnit hybrid
-  container and no real inference have executed. The outstanding live runs
-  are: a genuine assertion-level change, a Workflow 26-style no-delta
-  reproduction (now expected to attempt one semantic re-plan first), and a
-  new-API run to observe the structural-evidence path end to end.
-* **Real timing is unmeasured.** Every duration recorded here measures
-  orchestration against a canned verifier. No optimization decision should be
-  made from them.
-* **Semantic re-plan effectiveness is unmeasured.** Budget 1 is a conservative
-  starting point; the telemetry exists precisely so it can be revised from
-  observed rescue rates and latency instead of left permanent by inertia.
+* **Timing policy remains unproven.** Real Pi workflow timings now exist, but
+  the sample is too small and workload-specific to justify an optimization
+  threshold or performance budget.
+* **Semantic re-plan effectiveness at scale is unmeasured.** The live Pi run
+  proves the bounded mechanism executes correctly, not that budget 1 is the
+  long-term optimum. The telemetry exists so rescue rate and latency can be
+  evaluated over many tasks.
 * **Test-side logic** remains a documented limitation, not a mitigated risk.
 * Repository shapes beyond the Gradle/JUnit lab profile — other build systems,
   larger files, more than three changed files — remain unproven. One passing

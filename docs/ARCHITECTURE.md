@@ -258,6 +258,13 @@ Container cleanup failure invalidates a pass.
 
 ## 9. Future direction *(not implemented)*
 
-Explicitly **not** present today: automatic PR publication, repository browsing
-by the model, multi-worker concurrency, non-Java languages, Maven, dependency
-resolution inside job containers, and any merge capability.
+The next planned increment is 7C-1: model-proposed scope with a separate human
+grant. The current design proposal is
+[`milestones/PROPOSAL-7C-1.md`](milestones/PROPOSAL-7C-1.md); it is not yet
+implemented and does not weaken committed `.nullcode.json` authority.
+
+After that, the planned autonomy step is GitHub issue/task ingestion feeding the
+same bounded execution and draft-PR path. Explicitly **not** present today:
+automatic scope grants, autonomous task selection, automatic PR publication,
+multi-worker concurrency, non-Java languages, Maven, dependency resolution
+inside job containers, or any merge capability.

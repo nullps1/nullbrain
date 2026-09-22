@@ -21,6 +21,8 @@ general autonomous agent. It can, today:
 - run deterministic review rules and refuse to commit when they find something;
 - commit passing work to an isolated branch in an isolated clone;
 - plan and execute bounded multi-file edits against a Gradle/JUnit project;
+- require candidate tests to distinguish candidate production from the pinned base through a behavioral-delta counterfactual;
+- allow exactly one separately bounded semantic re-plan when the first candidate demonstrates no behavioral delta;
 - verify a model's work against committed, human-reviewed acceptance tests;
 - push a task branch and open a **draft** PR when a human runs the publisher.
 
@@ -91,13 +93,15 @@ acceptance profiles: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
 
 ```sh
 PYTHONPATH=src python3 -m unittest discover -s tests   # 171 tests
-pytest                                                 # same 77, config in pyproject.toml
+pytest                                                 # same 171, config in pyproject.toml
 cd rust && cargo test                                  # 3 controller tests
 ```
 
 The Python suite uses real Git repositories and real SQLite databases but
-simulates inference and Docker verification, so it runs anywhere. Actual model
-and container behaviour must be exercised on the Pi.
+simulates inference and Docker verification, so it runs anywhere. Milestone 7B.1
+has also been exercised end-to-end on the Raspberry Pi with live inference and
+container verification; see `docs/PROJECT_STATE.md` and the 7B.1 milestone record
+for the current validation boundary.
 
 ## Where to look next
 

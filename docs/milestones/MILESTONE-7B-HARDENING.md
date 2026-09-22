@@ -1,5 +1,13 @@
 # Milestone 7B hardening: behavioral-novelty validation
 
+> **Extended by [7B.1](MILESTONE-7B-1.md).** The counterfactual, the hybrid
+> construction and the terminal state below are unchanged, but the two
+> distinguishing classifications are no longer recorded as equal-quality
+> evidence (`evidence_level`), a no-delta candidate now gets one bounded
+> semantic re-plan before that terminal state, and stage timing and re-plan
+> telemetry are persisted. The test count at the bottom of this document is
+> historical.
+
 `repo-execute-v1` could reach `succeeded` without the candidate introducing
 any real production behavior change. Every gate in
 [Milestone 7B](MILESTONE-7B.md) passed on a task that rewrote production code

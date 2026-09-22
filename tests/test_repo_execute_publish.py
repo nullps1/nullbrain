@@ -236,15 +236,20 @@ class RepoExecutePublishTests(unittest.TestCase):
         harness.setUp()
         harness.pin_base_production(workflow.WORKFLOW_26_BASE_PROD)
         image = 'sha256:' + 'a' * 64
+        candidate = {'passed': True, 'image_id': image,
+                     'junit': {'tests': 13, 'failures': 0, 'skipped': 0}}
+        baseline = {'passed': True, 'image_id': image,
+                    'junit': {'tests': 12, 'failures': 0, 'skipped': 0}}
+        # The bounded semantic re-plan runs first and also shows no delta.
         _, job, _ = harness.run_case(
             answers=[workflow.SELECTION, workflow.PLAN, workflow.WORKFLOW_26_PROD,
+                     harness.added_case_test(harness.HYPHEN_CASE),
+                     workflow.SEMANTIC_DIAGNOSIS, workflow.REPLAN_PLAN,
+                     workflow.WORKFLOW_26_PROD,
                      harness.added_case_test(harness.HYPHEN_CASE)],
             verify_results=[
-                {'passed': True, 'image_id': image,
-                 'junit': {'tests': 13, 'failures': 0, 'skipped': 0}},
-                {'passed': True, 'image_id': image,
-                 'junit': {'tests': 12, 'failures': 0, 'skipped': 0}},
-                workflow.HYBRID_NO_DELTA,
+                candidate, baseline, workflow.HYBRID_NO_DELTA,
+                candidate, baseline, workflow.HYBRID_NO_DELTA,
             ],
         )
         self.assertEqual(job['status'], workflow.REJECTED_NO_BEHAVIORAL_DELTA)
@@ -261,6 +266,108 @@ class RepoExecutePublishTests(unittest.TestCase):
                                  binary=True))
         plan = prepare(self.job, self.artifacts)
         self.assertIn(workflow.PROD_TARGET, plan['body'])
+
+
+class PublishedEvidenceMetadataTests(unittest.TestCase):
+    """Milestone 7B.1: the preview states which kind of novelty evidence the
+    workflow actually has. Eligibility is unchanged - still status ==
+    'succeeded', still draft-only, still human acceptance."""
+
+    def build(self, production, case, hybrid, replan=False):
+        harness = workflow.BehavioralDeltaTests()
+        harness.setUp()
+        harness.pin_base_production(workflow.WORKFLOW_26_BASE_PROD)
+        image = 'sha256:' + 'a' * 64
+        candidate = {'passed': True, 'image_id': image,
+                     'junit': {'tests': 13, 'failures': 0, 'skipped': 0}}
+        baseline = {'passed': True, 'image_id': image,
+                    'junit': {'tests': 12, 'failures': 0, 'skipped': 0}}
+        answers = [workflow.SELECTION, workflow.PLAN, production,
+                   harness.added_case_test(case)]
+        verifications = [candidate, baseline, hybrid]
+        if replan:
+            answers = [workflow.SELECTION, workflow.PLAN,
+                       workflow.WORKFLOW_26_PROD,
+                       harness.added_case_test(workflow.BehavioralDeltaTests.HYPHEN_CASE),
+                       workflow.SEMANTIC_DIAGNOSIS, workflow.REPLAN_PLAN,
+                       production, harness.added_case_test(case)]
+            verifications = [candidate, baseline, workflow.HYBRID_NO_DELTA,
+                             candidate, baseline, hybrid]
+        _, job, _ = harness.run_case(answers, verifications)
+        self.assertEqual(job['status'], 'succeeded', job.get('error'))
+        self.harness = job, harness.root / 'jobs'
+        self.final = next(attempt['result'] for attempt in job['attempts']
+                          if (attempt.get('result') or {}).get('profile')
+                          == 'repo-execute-v1')
+        return job, harness.root / 'jobs'
+
+    def test_behavioral_evidence_is_labelled_as_behavioral(self):
+        job, artifacts = self.build(
+            workflow.GOOD_PROD, workflow.BehavioralDeltaTests.HYPHEN_CASE,
+            workflow.HYBRID_DISTINGUISHING)
+        body = prepare(job, artifacts)['body']
+        self.assertIn('distinguishing-test-failure', body)
+        self.assertIn('evidence level **behavioral**', body)
+        self.assertIn('Behavioral evidence', body)
+        self.assertNotIn('Structural evidence only', body)
+
+    def test_structural_evidence_says_so_and_does_not_claim_behavior(self):
+        job, artifacts = self.build(
+            workflow.NEW_API_PROD, workflow.BehavioralDeltaTests.UNICODE_CASE,
+            workflow.HYBRID_API_COMPILE_FAILURE)
+        body = prepare(job, artifacts)['body']
+        self.assertIn('distinguishing-api-compile-failure', body)
+        self.assertIn('evidence level **structural**', body)
+        self.assertIn('does NOT prove that runtime behavior differs', body)
+        # Still a draft for a human, with the same caveats as before.
+        self.assertIn('Draft for human review', body)
+
+    def test_a_replanned_candidate_says_it_replaced_an_empty_one(self):
+        job, artifacts = self.build(
+            workflow.GOOD_PROD, workflow.BehavioralDeltaTests.HYPHEN_CASE,
+            workflow.HYBRID_DISTINGUISHING, replan=True)
+        body = prepare(job, artifacts)['body']
+        self.assertIn('semantic re-plan 1', body)
+        self.assertIn('re-verified', body)
+
+    def test_missing_or_doctored_delta_evidence_is_not_publishable(self):
+        job, artifacts = self.build(
+            workflow.GOOD_PROD, workflow.BehavioralDeltaTests.HYPHEN_CASE,
+            workflow.HYBRID_DISTINGUISHING)
+        delta = self.final['behavioral_delta']
+        mutations = [
+            ('classification', workflow.NO_BEHAVIORAL_DELTA),
+            ('classification', 'something-else'),
+            ('distinguishing', False),
+            # An evidence level that disagrees with its own classification.
+            ('evidence_level', 'behavioral-ish'),
+        ]
+        for key, value in mutations:
+            with self.subTest(key=key, value=value):
+                original = delta[key]
+                delta[key] = value
+                with self.assertRaises(ValueError):
+                    prepare(job, artifacts)
+                delta[key] = original
+        # Structural evidence must not be relabelled as behavioral either.
+        delta['classification'] = workflow.DISTINGUISHING_API_COMPILE_FAILURE
+        with self.assertRaisesRegex(ValueError, 'not distinguishing'):
+            prepare(job, artifacts)
+        delta['classification'] = workflow.DISTINGUISHING_TEST_FAILURE
+
+        original = self.final.pop('behavioral_delta')
+        with self.assertRaisesRegex(ValueError, 'Missing behavioral-delta'):
+            prepare(job, artifacts)
+        self.final['behavioral_delta'] = original
+
+        # A hybrid snapshot that is not the state the producer recorded.
+        manifest = self.final['behavioral_delta']['manifest']
+        kept = manifest['hybrid_snapshot_sha256']
+        manifest['hybrid_snapshot_sha256'] = {'src/main/java/lab/Slugs.java': 'x'}
+        with self.assertRaisesRegex(ValueError, 'Hybrid counterfactual snapshot'):
+            prepare(job, artifacts)
+        manifest['hybrid_snapshot_sha256'] = kept
+        self.assertIn('evidence level', prepare(job, artifacts)['body'])
 
 
 if __name__ == '__main__':

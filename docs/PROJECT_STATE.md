@@ -1,19 +1,73 @@
 # NullCode project state
 
-**Updated:** 2026-09-21, Milestone 7B hardening (behavioral-novelty
-validation).
+**Updated:** 2026-09-21, Milestone 7B.1 (behavioral-delta evidence hardening).
 **Implementation commits:** `34fc203` (7C-2), its Linux-review hardening
-commit, `88c015b` (insufficient-test-count repair), then the behavioral-delta
-commit described below. Identified by commit rather than by branch, because
-the development branches are deleted once merged.
-**Implementation base:** `f5a5db6`.
+commit, `88c015b` (insufficient-test-count repair), `a48d419` (the
+behavioral-delta gate), then the 7B.1 commit described below. Identified by
+commit rather than by branch, because the development branches are deleted
+once merged.
+**Implementation base:** `80e47cb`.
 
 This is the authoritative handoff document. Read it before changing anything.
 The current update below supersedes the retained refactor-era snapshot in
 sections 1–9. Historical test counts, branch/history statements, and next-step
 proposals in those sections are not current. Section 10's constraints remain.
 
-## Current update: 7B hardening — behavioral-novelty validation
+## Current update: 7B.1 — behavioral-delta evidence hardening
+
+The behavioral-delta gate treated two unequal kinds of evidence as
+interchangeable and made a no-delta verdict terminal on the first attempt.
+`repo-execute-v1` now records an explicit `evidence_level` with every
+classification — `behavioral` when the candidate suite compiled against
+pinned-base production and failed there, `structural` when it could not be
+compiled against the base at all — and carries that level into the artifact,
+the workflow result and the draft-PR body. Structural evidence states plainly
+that it does not prove runtime behavioral novelty.
+
+The API compile-failure policy was chosen from a recorded experiment, not from
+intuition: a legitimate new API and a deliberately trivial one produce
+identical hybrid evidence, because a test-compilation failure aborts the suite
+before any assertion runs. Rejecting structural evidence would therefore
+reject every legitimate new-API task. Policy A (allow, labelled `structural`)
+is selected; Policy B has no robust implementation without a Java/JUnit source
+parser, which stays out of scope. `policy_decision()` is shared by the
+workflow and the experiment.
+
+A no-delta candidate now gets exactly one **semantic re-plan**, budgeted
+separately from the unchanged two-attempt repair loop. The superseded
+candidate is reset to pinned-base content and the replacement re-runs every
+gate from planning onwards on its own evidence; nothing of the superseded
+candidate's verification is reused. A repeated no-delta still terminates on
+`rejected-no-behavioral-delta`. The diagnostic prompt is advisory and is
+documented as such in both code and prose — enforcement stays deterministic.
+
+Semantic re-plan telemetry and monotonic stage timings are persisted for every
+terminal state so budget 1 and the counterfactual's cost can be revisited from
+observed data. **No performance threshold was introduced**: the durations
+available here measure orchestration only, not Gradle.
+
+Validation was broadened to multi-file hybrids (2+1, 1+2 and 2+2), a 48-case
+eight-file lab, legitimate and trivial new-API fixtures, and adversarial
+test-side logic fixtures. The test-side logic risk is **not** mitigated: the
+counterfactual proves an observed difference is caused by production content,
+but cannot show an assertion is meaningful, and the deterministic review does
+not read test helpers. That is recorded as a known limitation with evidence,
+alongside a new advisory, non-gating diff statistic. No blanket prohibition on
+test helpers was added.
+
+No existing gate was weakened: the minimum-test floor, baseline regression,
+added-coverage comparison, editable scope, per-candidate repair budget, hybrid
+snapshot integrity, fail-closed infrastructure handling, draft-only
+publication and human acceptance are all unchanged. The publisher additionally
+refuses records whose novelty evidence is missing or inconsistent.
+
+The suite is **171 tests**, up from 133, and passes on Linux (x86-64, Python
+3.11.15, Git 2.43.0) in 35.9 s. Seven mutations of the new behavior were
+applied to throwaway copies to confirm the tests fail without it. **The live
+smoke test has still not been run**: this environment has no Docker daemon and
+no Ollama. See [7B.1](milestones/MILESTONE-7B-1.md).
+
+## Previous update: 7B hardening — behavioral-novelty validation
 
 `repo-execute-v1` could reach `succeeded` without the candidate changing any
 production behavior: every gate passed on a cosmetic production rewrite plus a
@@ -41,7 +95,7 @@ Gradle/JUnit hybrid container and no real inference has executed. Both the
 genuine-change run and the Workflow 26 reproduction are still outstanding on
 the Pi.
 
-## Previous update: 7C-2
+## Earlier update: 7C-2
 
 Successful `repo-execute-v1` workflows can now use the existing explicit
 publisher CLI for a local preview and optional draft PR. Profile-specific
@@ -186,6 +240,9 @@ and `compose/ollama.compose.yml`, and the controller build context is `rust/`.
 | 6 | Configurable small Gradle/JUnit tasks | [`milestones/MILESTONE-6.md`](milestones/MILESTONE-6.md) |
 | 7A | Read-only repository inspection and planning | [`milestones/MILESTONE-7A.md`](milestones/MILESTONE-7A.md) |
 | 7B | Planned, bounded multi-file execution | [`milestones/MILESTONE-7B.md`](milestones/MILESTONE-7B.md) |
+| 7B hardening | Behavioral-novelty validation | [`milestones/MILESTONE-7B-HARDENING.md`](milestones/MILESTONE-7B-HARDENING.md) |
+| 7B.1 | Behavioral-delta evidence hardening | [`milestones/MILESTONE-7B-1.md`](milestones/MILESTONE-7B-1.md) |
+| 7C-2 | Multi-file draft PR publishing | [`milestones/MILESTONE-7C-2.md`](milestones/MILESTONE-7C-2.md) |
 | — | Acceptance-gated production edits (`accepted-java-v1`) | *no document — see `accepted_workflow.py`* |
 | — | `javac`-driven repair rule (`javac-string-array-stream-loop-v1`) | *no document — see `compiler_repair_rule`* |
 
@@ -215,6 +272,24 @@ and `compose/ollama.compose.yml`, and the controller build context is `rust/`.
 7. **No authentication anywhere.** Localhost-only by design.
 8. **Java only.** Gradle only; no Maven, no dependency resolution inside job
    containers.
+9. **Structural novelty is not behavioral novelty.** A candidate whose tests
+   cannot be compiled against pinned-base production is admitted on
+   `evidence_level = structural`: the API surface demonstrably differs, but no
+   assertion ran against the base, so a semantically empty new API can reach a
+   draft PR. The policy and the fixture evidence behind it are in
+   [7B.1](milestones/MILESTONE-7B-1.md) §2; the level is recorded everywhere
+   so such admits are countable.
+10. **Test-side logic is not mitigated.** Candidate test sources may contain
+   helpers that reimplement production logic, making an assertion
+   tautological. The counterfactual proves an observed difference is caused by
+   production content — candidate tests are byte-identical in both worlds —
+   but it cannot prove the assertion is meaningful, and the targeted review
+   rules do not read test helpers. Human acceptance remains the control. See
+   [7B.1](milestones/MILESTONE-7B-1.md) §6.
+11. **Stage timings are orchestration-only.** `timing.json` is written for
+   every workflow, but no run in a development environment has timed a real
+   Gradle compile or test. No optimization threshold has been set, and none
+   should be derived from these numbers.
 
 ## 7. Checkpoint snapshots
 

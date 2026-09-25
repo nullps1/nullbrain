@@ -9,6 +9,24 @@ milestone 6 are ordered by increment, not by date.
 
 ## Unreleased
 
+### Workflows 34–35 live validation — 2026-09-25
+
+- Record [Workflow 34](workflows/WORKFLOW-034.md): a second live 7B.2
+  `test`-domain route correctly targeted `TextStatsTest.java` for a bad
+  generated expectation (`" 123 "` expected 2, actual 3). The accepted route
+  was persisted, then the unchanged 2000-byte prompt gate failed closed at
+  2300/2000 bytes before repair inference. No commit or publication.
+- Record [Workflow 35](workflows/WORKFLOW-035.md): an ASCII-only follow-up
+  candidate and the original-suite baseline both passed 46/46, but the
+  deterministic added-coverage gate rejected the changed editable test because
+  executed JUnit cases did not increase (46 vs 46). No repair routing occurred.
+- Human review of Workflow 34 found the generated `Character.isDigit`
+  implementation was broader than the stated ASCII `0-9` requirement; that
+  observation motivated Workflow 35. Production-domain live repair routing
+  remains unproven.
+- Documentation only; no runtime artifacts are committed.
+
+
 ### Workflow execution records — 2026-09-25
 
 - Add [`workflows/`](workflows/README.md): durable records of notable live

@@ -1,8 +1,7 @@
 # NullCode project state
 
 **Updated:** 2026-09-25, with dedicated workflow records under
-[`workflows/`](workflows/) and the first live Pi run of Milestone 7B.2
-(Workflow 33, failed safely).
+[`workflows/`](workflows/) and live Milestone 7B.2 evidence through Workflow 35.
 **Base main:** `2d6c6c0` (merge of PR #9, Milestone 7B.2).
 **Key implementation commits:** `34fc203` (7C-2 publisher), `53e09bb` / `6c78080`
 (7C-2 hardening/docs), `88c015b` (insufficient-test-count repair), `a48d419`
@@ -47,6 +46,18 @@ repair re-verification, the bounded two-repair budget, and that a valid route
 cannot bypass the prompt limit. **Live production-domain routing is still
 unproven**, and so is a live rejection of a contradictory route. See
 [7B.2 §15](milestones/MILESTONE-7B-2.md#15-live-validation-record).
+
+**Workflow 34** ([record](workflows/WORKFLOW-034.md)) independently repeated a
+valid live `test` route for a bad generated expectation (`" 123 "` expected 2,
+actual 3), then failed closed because complete repair context needed
+2300/2000 bytes. **Workflow 35** ([record](workflows/WORKFLOW-035.md)) tightened
+that task to ASCII-only digits and explicit Unicode coverage; its candidate and
+baseline both passed 46/46, but the added-coverage gate rejected it because the
+changed test file did not increase the executed case count (46 vs 46).
+
+These runs add evidence for routing, prompt-budget and coverage enforcement,
+but they do **not** close the remaining 7B.2 live gap: production-domain repair
+routing is still unproven, as is a live contradictory typed-route rejection.
 
 ## Previous update: 7B.2 — typed repair-target routing
 

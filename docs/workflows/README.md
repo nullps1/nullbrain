@@ -45,6 +45,8 @@ Workflow records follow the documentation-trail convention in
 | [26](WORKFLOW-026.md) | behavioral-delta hardening evidence |
 | [32](WORKFLOW-032.md) | repair-routing contradiction that motivated 7B.2 |
 | [33](WORKFLOW-033.md) | first live 7B.2 test-domain validation |
+| [34](WORKFLOW-034.md) | second live 7B.2 test-domain route; repair prompt budget failed closed |
+| [35](WORKFLOW-035.md) | ASCII-only follow-up stopped by the added-coverage gate |
 
 File names are zero-padded to three digits (`WORKFLOW-025.md`) so they sort
 correctly; prose uses the plain number ("Workflow 25").

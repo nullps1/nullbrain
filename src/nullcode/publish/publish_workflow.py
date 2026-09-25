@@ -16,6 +16,10 @@ def digest(text):
 
 
 def prepare(job, artifacts=JOBS):
+    # Checked first: a proposal must never reach any publishing path below,
+    # including the legacy one it would otherwise fall through to.
+    if job.get('repo_spec') and json.loads(job['repo_spec']).get('profile') == 'repo-scope-v1':
+        raise ValueError('Scope proposal workflows are not publishable')
     if job.get('repo_spec') and json.loads(job['repo_spec']).get('profile') == 'repo-execute-v1':
         from nullcode.publish.repo_execute_publish import prepare_repo_execute
         return prepare_repo_execute(job, artifacts)

@@ -42,7 +42,7 @@ state and the next intended milestone.
 | Gradle profile | `src/nullcode/gradle/` | Offline Gradle/JUnit verification and the approved build templates. |
 | Publishing | `src/nullcode/publish/` | Acceptance preparation/checking and explicit GitHub draft-PR delivery. |
 | Fixtures | `src/nullcode/fixtures/` | Generators for the local Git repositories the smoke tests use. |
-| Tests | `tests/` | 171 unittest cases: real Git and SQLite, simulated inference and Docker. |
+| Tests | `tests/` | 190 unittest cases: real Git and SQLite, simulated inference and Docker. |
 | Deployment | `compose/`, `deploy/` | Compose files for the controller and Ollama; the worker systemd unit. |
 | Documentation | `docs/` | Architecture, current state, changelog and the milestone record. |
 
@@ -92,16 +92,22 @@ acceptance profiles: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
 ## Running the tests
 
 ```sh
-PYTHONPATH=src python3 -m unittest discover -s tests   # 171 tests
-pytest                                                 # same 171, config in pyproject.toml
+PYTHONPATH=src python3 -m unittest discover -s tests   # 190 tests, OK
+pytest                                                 # 190 passed, 1 known collection error
 cd rust && cargo test                                  # 3 controller tests
 ```
+
+The pytest run is **not yet clean**: pytest collects one imported production
+helper whose name starts with `test_` as if it were a test, and reports an
+error for it. The 190 real test cases pass under both runners. See
+`docs/PROJECT_STATE.md` §6.
 
 The Python suite uses real Git repositories and real SQLite databases but
 simulates inference and Docker verification, so it runs anywhere. Milestone 7B.1
 has also been exercised end-to-end on the Raspberry Pi with live inference and
-container verification; see `docs/PROJECT_STATE.md` and the 7B.1 milestone record
-for the current validation boundary.
+container verification, and the Patient Zero Java lab now builds and runs live
+workflows there; see `docs/PROJECT_STATE.md` for the current validation boundary,
+including live workflows that failed closed.
 
 ## Where to look next
 

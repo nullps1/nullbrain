@@ -258,8 +258,13 @@ Container cleanup failure invalidates a pass.
 
 ## 9. Future direction *(not implemented)*
 
-The next planned increment is 7C-1: model-proposed scope with a separate human
-grant. The current design proposal is
+The immediate next design item is a hardening increment, 7B.2: typed
+repair-target routing inside `repo-execute-v1`, proposed in
+[`milestones/PROPOSAL-7B-2.md`](milestones/PROPOSAL-7B-2.md). It changes no
+budget, limit or gate.
+
+The next planned autonomy increment, after 7B.2, is 7C-1: model-proposed scope
+with a separate human grant. The current design proposal is
 [`milestones/PROPOSAL-7C-1.md`](milestones/PROPOSAL-7C-1.md); it is not yet
 implemented and does not weaken committed `.nullcode.json` authority.
 

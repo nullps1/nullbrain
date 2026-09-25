@@ -1,19 +1,80 @@
 # NullCode project state
 
-**Updated:** 2026-09-21, after Milestone 7B.1 merged to `main`.
-**Current main:** `84f0dc1` (merge of Milestone 7B.1).
+**Updated:** 2026-09-25, after the Patient Zero compatibility tests merged to
+`main` and Workflow 32 ran live on the Pi.
+**Current main:** `c707140` (merge of PR #7, Patient Zero compatibility tests).
 **Key implementation commits:** `34fc203` (7C-2 publisher), `53e09bb` / `6c78080`
 (7C-2 hardening/docs), `88c015b` (insufficient-test-count repair), `a48d419`
-(behavioral-delta gate), and `3c7e724` (7B.1 evidence hardening + semantic
-re-plan). Development branches are deleted after merge; commits are the durable
+(behavioral-delta gate), `3c7e724` (7B.1 evidence hardening + semantic
+re-plan), and `60c15ce` (Patient Zero compatibility tests, test-only).
+Development branches are deleted after merge; commits are the durable
 references.
 
 This is the authoritative handoff document. Read it before changing anything.
-The current update below supersedes the retained refactor-era snapshot in
-sections 1–9. Historical test counts, branch/history statements, and next-step
-proposals in those sections are not current. Section 10's constraints remain.
+The update sections below are newest first; each earlier one describes the
+state at its own time, and its test counts and "outstanding" items are
+historical unless a later section repeats them. Sections 1–9 retain the
+refactor-era snapshot, refreshed where marked. Sections 10 and 11 are current
+rules.
 
-## Current update: 7B.1 — behavioral-delta evidence hardening
+## Current update: Patient Zero compatibility and Workflow 32
+
+**Patient Zero compatibility is merged and live on the Pi.** "Patient Zero" is
+the upgraded external Java lab (`nullcode-java-lab`), the first repository
+shaped for real `repo-execute-v1` use rather than a smoke fixture: bounded
+`editable_files` / `editable_test_files` lists under the 8-file ceilings, build
+files byte-matching the approved `gradle_profile`, committed Java that is
+deliberately not edit authority, and a source-size distribution that
+straddles the 900-byte pre-filter.
+
+PR #7 (`60c15ce`, merged as `c707140`) is **test-only**: it adds
+`tests/test_patient_zero_compat.py`, 19 unittest cases on a synthetic fixture
+that mirrors that shape. They document current behavior and change none of
+it — including that a policy-legal 2-production + 1-test selection can exceed
+the 2000-byte prompt budget and fails closed rather than truncating. Nothing
+in the tests reaches the external lab repository.
+
+Live Pi state recorded after merge:
+
+| Check | Result |
+| --- | --- |
+| Patient Zero Java lab build | succeeds with Java 21 / Gradle 8.14.3 |
+| Offline Gradle build | succeeds after the dependency cache was seeded |
+| Nullbrain `pytest` on the Pi | **190 passed, 1 pre-existing collection error** |
+
+The pytest error was reproduced off-Pi on current `main` (Linux, pytest 9):
+pytest collects `test_side_logic_observation`, a production helper that
+`tests/test_behavioral_delta_evidence.py` imports by name, as if it were a
+test function, and errors at setup (`fixture 'patch' not found`). It is a
+collection artifact, not a failing test. Under `unittest`
+(`python3 -m unittest discover -s tests`) the same tree runs **190 tests, OK**.
+The suite is therefore not clean under pytest until that is fixed, which is a
+tests-only follow-up outside this documentation change.
+
+**Workflow 32 failed, safely, and exposed a repair-routing gap.** Task: "Add a
+small tested behavior improvement consistent with the existing project API."
+Selection (`TextStats.java` + `TextStatsTest.java`) and planning ("Add a method
+to count punctuation marks in the text.") succeeded. The generated
+`countPunctuation(String)` was correct; one generated assertion expected 4 for
+an input containing 31 punctuation characters, so verification failed with
+`expected: <4> but was: <31>`. The repair-selection model then replied with a
+reason blaming the **test** expectation but a target naming the **production**
+file. `validate_repair_selection(...)` checks only JSON shape, approved scope
+and a non-empty reason, so it accepted the contradiction; the production file
+came back unchanged and the workflow failed closed on
+`Repair 1 returned unchanged source`. No commit, no publication. Every
+existing gate held; the only repair that could have succeeded was spent on the
+wrong file.
+
+**Next:** [Proposal 7B.2 — typed repair-target routing](milestones/PROPOSAL-7B-2.md)
+is now the immediate next design item. It proposes a closed
+`fault_domain` (`production` | `test`) in the repair-selection reply and a
+deterministic check that the file agrees with it, failing closed on any
+contradiction, with no auto-correction, no reselection, and no change to any
+budget or gate. It is a proposal; nothing is implemented. **7C-1 remains the
+next autonomy milestone, planned after this hardening work.**
+
+## Previous update: 7B.1 — behavioral-delta evidence hardening
 
 The behavioral-delta gate treated two unequal kinds of evidence as
 interchangeable and made a no-delta verdict terminal on the first attempt.
@@ -69,7 +130,7 @@ behavioral evidence, and structural API evidence. Hybrid snapshot integrity and
 the existing repair, scope, regression, publishing, and human-acceptance
 boundaries remained intact. See [7B.1](milestones/MILESTONE-7B-1.md).
 
-## Previous update: 7B hardening — behavioral-novelty validation
+## Earlier update: 7B hardening — behavioral-novelty validation
 
 `repo-execute-v1` could reach `succeeded` without the candidate changing any
 production behavior: every gate passed on a cosmetic production rewrite plus a
@@ -188,7 +249,7 @@ src/nullcode/
   fixtures/  create_fixture.py  create_gradle_fixture.py
   acceptance/  contract.json  TextStatsAcceptanceTest.java   (package data)
 rust/        Cargo.toml  src/main.rs  Dockerfile  README.md
-tests/       11 test modules, 171 unittest cases
+tests/       12 test modules, 190 unittest cases (as of c707140)
 scripts/     smoke.py
 ```
 
@@ -296,6 +357,15 @@ and `compose/ollama.compose.yml`, and the controller build context is `rust/`.
    `timing.json` is written for every workflow and real Pi workflow timings now
    exist, but the sample is too small and task-specific to justify a threshold
    or optimization target.
+12. **Repair routing is untyped.** The repair-selection reply carries its fault
+   diagnosis (implementation vs. test expectation) only in free-text `reason`,
+   so `validate_repair_selection(...)` cannot detect a reply whose reason and
+   target file disagree. Workflow 32 hit exactly this and failed closed one
+   model call later on the unchanged-source guard. Proposed fix:
+   [7B.2](milestones/PROPOSAL-7B-2.md).
+13. **The suite is not clean under pytest.** `pytest` reports one collection
+   error (an imported production helper named `test_*` is collected as a test);
+   `unittest` runs the same 190 cases cleanly. See the current update above.
 
 ## 7. Checkpoint snapshots
 
@@ -323,8 +393,9 @@ leave them in place. `checkpoints/README.md` repeats this.
 
 ```sh
 # Python (no install needed)
-PYTHONPATH=src python3 -m unittest discover -s tests   # expect: Ran 171 tests ... OK
-pytest -q                                              # expect: 171 passed
+PYTHONPATH=src python3 -m unittest discover -s tests   # expect: Ran 190 tests ... OK
+pytest -q                                              # expect: 190 passed, 1 error (known collection
+                                                       #   error, see §6 item 13) - not a clean run
 
 # Rust controller
 cd rust && cargo test && cargo check                   # expect: 3 passed
@@ -349,8 +420,13 @@ PYTHONPATH=src python3 -m nullcode.core.java_workflow wait <id>
 **Active direction:** move from human-preselected edit scope toward controlled
 task autonomy without weakening the existing deterministic gates.
 
-**Next intended milestone: 7C-1 — model-proposed scope, human-granted scope.**
-The current design lives in
+**Immediate next design item: 7B.2 — typed repair-target routing.** A
+hardening increment motivated by Workflow 32, designed in
+[`milestones/PROPOSAL-7B-2.md`](milestones/PROPOSAL-7B-2.md). It is a proposal,
+not implemented behavior, and it changes no budget, limit, scope rule or gate.
+
+**Next autonomy milestone, after 7B.2: 7C-1 — model-proposed scope,
+human-granted scope.** The current design lives in
 [`milestones/PROPOSAL-7C-1.md`](milestones/PROPOSAL-7C-1.md) and is still a
 proposal, not implemented behavior. The invariant is unchanged: a model may
 propose a scope, but only a human can grant it by changing committed policy.
@@ -376,3 +452,41 @@ The short version:
 - Do not move runtime/generated state into the package or into Git.
 - Do not hoist `core.java_workflow`'s lazy profile imports to module scope.
 - Develop in small, verified milestones; run the suites before and after.
+
+## 11. Documentation-trail convention
+
+A workflow or milestone is **not administratively complete until its
+documentation trail is updated.** Code merged, a job finished, or a live run
+observed is not the end of the task; the durable record is.
+
+The trail records, where applicable:
+
+- workflow or milestone ID;
+- task or objective;
+- selected scope;
+- outcome (including `failed` and `rejected-*` outcomes, stated as such);
+- what changed, and why;
+- validation and test results, with the environment and the runner
+  (`unittest` and `pytest` counts reported separately when they differ);
+- commits, PRs and branches;
+- artifacts and evidence consulted;
+- limitations, failed paths and anything not verified;
+- follow-up or next action.
+
+Where it goes:
+
+- a milestone or hardening increment gets its own `docs/milestones/` record
+  (or `PROPOSAL-*.md` before implementation), written at the time;
+- `PROJECT_STATE.md` gets a dated update section for anything that changes
+  current state or the next step, including notable live workflows such as
+  Workflow 32;
+- `CHANGELOG.md` gets a concise entry under *Unreleased*;
+- `README.md` changes only when its own current-state claims become wrong.
+
+Runtime job artifacts (`jobs/workflow-<id>/`, the workflow database, logs)
+remain **untracked**. Repository documentation summarizes the durable
+conclusions drawn from them; it never commits `jobs/` or other runtime state.
+
+Historical records are corrected by annotation, not rewriting: a statement that
+was true when written stays, marked as historical, and the current state is
+stated in the newest section.

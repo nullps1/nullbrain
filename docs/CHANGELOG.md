@@ -9,6 +9,30 @@ milestone 6 are ordered by increment, not by date.
 
 ## Unreleased
 
+### Patient Zero validation, Workflow 32 and Proposal 7B.2 — 2026-09-25
+
+- Merge Patient Zero compatibility regression coverage (PR #7, `60c15ce`):
+  `tests/test_patient_zero_compat.py`, 19 test-only cases on a synthetic
+  fixture mirroring the upgraded Java lab's bounded shape. No production
+  source changed. Suite: 190 unittest cases.
+- Validate Patient Zero live on the Pi: the Java lab builds with Java 21 /
+  Gradle 8.14.3, including offline after dependency-cache seeding. Nullbrain
+  `pytest` on the Pi reports 190 passed and 1 pre-existing collection error
+  (an imported production helper named `test_*` is collected as a test);
+  `unittest` runs the same 190 cases cleanly.
+- Record Workflow 32 (**failed, safely**): repair selection returned a reason
+  blaming the test expectation but targeted the production file;
+  `validate_repair_selection(...)` does not check that agreement, and the
+  workflow failed closed on `Repair 1 returned unchanged source`. No commit or
+  publication.
+- Add [Proposal 7B.2](milestones/PROPOSAL-7B-2.md), typed repair-target
+  routing, as the immediate next design item. Recommends immediate fail-closed
+  on contradictory routing and no reselection. Nothing is implemented; 7C-1
+  remains the next autonomy milestone after it.
+- Establish the documentation-trail convention in
+  [`PROJECT_STATE.md` §11](PROJECT_STATE.md#11-documentation-trail-convention),
+  and annotate stale "no milestone document exists" notes below as historical.
+
 ### Documentation synchronization — 2026-09-21
 
 - Refresh README, architecture, project state and 7B.1 records against current
@@ -140,23 +164,28 @@ test files before and after; skipped tests, insufficient test counts, tampered
 snapshots and failed container cleanup all block the commit. At most two repairs.
 Added `prepare_acceptance.py` (isolated review checkout, never commits) and
 `check_acceptance.py` (runs a proposed suite against a reference plus three
-mutants). *No milestone document exists.*
+mutants). *No milestone document existed when this entry was written; see
+[ACCEPTED-JAVA-V1](milestones/ACCEPTED-JAVA-V1.md), added 2026-09-21.*
 
 Later extended with `javac-string-array-stream-loop-v1`, a narrowly-matched
 compiler repair rule that adds targeted guidance to a repair prompt without
-granting an extra attempt. *No milestone document exists.*
+granting an extra attempt. *No milestone document existed when this entry was
+written; see [JAVAC-REPAIR-RULE](milestones/JAVAC-REPAIR-RULE.md), added
+2026-09-21.*
 
 ### Milestone 7B — planned, bounded multi-file execution
 
 `submit-execute` / `repo-execute-v1`. Executes a validated plan across approved
 production and test files, up to 3 selected files, 900 bytes of source each, with
-Gradle/JUnit verification and up to two repairs. *No milestone document exists.*
+Gradle/JUnit verification and up to two repairs. *This entry originally said no
+milestone document existed; one now does: [MILESTONE-7B](milestones/MILESTONE-7B.md).*
 
 ### Milestone 7A — read-only repository inspection and planning
 
 `submit-plan` / `repo-plan-v1`. Builds a committed-file inventory, has the model
 select at most 3 relevant files, and produces a validated JSON plan. Makes no
-edits and creates no commits. *No milestone document exists.*
+edits and creates no commits. *This entry originally said no milestone document
+existed; one now does: [MILESTONE-7A](milestones/MILESTONE-7A.md).*
 
 ### [Milestone 6](milestones/MILESTONE-6.md) — configurable Gradle/JUnit tasks
 

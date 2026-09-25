@@ -29,7 +29,8 @@ not approvals and claim no verification.
 
 | Document | Increment |
 | --- | --- |
-| [PROPOSAL-7C-1.md](PROPOSAL-7C-1.md) | Model-proposed scope, human-granted scope |
+| [PROPOSAL-7B-2.md](PROPOSAL-7B-2.md) | Typed repair-target routing (hardening; next design item) |
+| [PROPOSAL-7C-1.md](PROPOSAL-7C-1.md) | Model-proposed scope, human-granted scope (next autonomy milestone) |
 
 ## ⚠️ Commands in these documents are historical
 
@@ -60,3 +61,6 @@ Prefix Python commands with `PYTHONPATH=src` unless the package is installed.
 All currently implemented named workflow increments and the special javac repair
 rule now have repository documentation. Historical documents intentionally keep
 the commands and validation boundaries from the time they were written.
+
+New milestones and notable live workflows follow the documentation-trail
+convention in [`../PROJECT_STATE.md` §11](../PROJECT_STATE.md#11-documentation-trail-convention).

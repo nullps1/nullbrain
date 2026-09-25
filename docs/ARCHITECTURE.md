@@ -72,6 +72,7 @@ Layer 3   publish/        fixtures/
               ▼                              ▼
 Layer 2   repo/
             accepted_workflow ──▶ repo_execute_workflow ──▶ repo_plan_workflow
+            repo_scope_review ──▶ repo_scope_workflow ──▶ repo_execute_workflow
             repo_workflow
               │
               ▼
@@ -94,6 +95,8 @@ Exact import edges, read from the source:
 | `repo.repo_plan_workflow` | `core.java_workflow` |
 | `gradle.gradle_workflow` | `core.java_workflow`, `core.review_java`, `repo.repo_workflow` |
 | `repo.repo_execute_workflow` | `core.java_workflow`, `core.review_java`, `gradle.gradle_workflow`, `repo.repo_plan_workflow`, `repo.repo_workflow` |
+| `repo.repo_scope_workflow` | `core.java_workflow`, `gradle.gradle_workflow`, `repo.repo_execute_workflow` (pure scope predicates only), `repo.repo_plan_workflow`, `repo.repo_workflow` |
+| `repo.repo_scope_review` | `core.java_workflow`, `gradle.gradle_workflow`, `repo.repo_plan_workflow`, `repo.repo_scope_workflow`, `repo.repo_workflow` |
 | `repo.accepted_workflow` | `core.java_workflow`, `core.review_java`, `gradle.gradle_workflow`, `repo.repo_execute_workflow`, `repo.repo_workflow` |
 | `publish.publish_workflow` | `core.java_workflow`, `core.review_java`, `repo.repo_workflow`, `gradle.gradle_workflow` (lazy) |
 | `publish.prepare_acceptance` | `gradle.gradle_workflow`, `repo.repo_workflow` |
@@ -108,14 +111,15 @@ directory grouping follows subject matter; the table above is the authority on
 dependency direction.
 
 `core/java_workflow.py` is the only module that deviates: it imports the higher
-profile modules **lazily inside functions** (in `main()` and the worker loop) to
+profile modules **lazily inside functions** (in `main()` and
+`run_repository_job()`, which the worker loop calls) to
 dispatch on a job's profile without creating an import cycle. That pattern is
 load-bearing — do not hoist those imports to module scope.
 
 | Package | Modules | Responsibility |
 | --- | --- | --- |
 | `core` | `java_workflow`, `validate_java`, `review_java` | Workflow `Store` (SQLite), worker loop, controller HTTP client, sandboxed `javac`/`java` verification, source extraction, deterministic review rules. |
-| `repo` | `repo_workflow`, `repo_plan_workflow`, `repo_execute_workflow`, `accepted_workflow` | Local-repository profiles, each with its own bounded attempt budget and gates. |
+| `repo` | `repo_workflow`, `repo_plan_workflow`, `repo_scope_workflow`, `repo_scope_review`, `repo_execute_workflow`, `accepted_workflow` | Local-repository profiles, each with its own bounded attempt budget and gates, plus the 7C-1 grant-diff renderer. |
 | `gradle` | `gradle_workflow`, `gradle_profile/` | Offline Gradle/JUnit builds, JUnit XML parsing, the approved build-file templates. |
 | `publish` | `publish_workflow`, `check_acceptance`, `prepare_acceptance` | Acceptance contract preparation/validation and explicit GitHub draft-PR delivery. |
 | `fixtures` | `create_fixture`, `create_gradle_fixture` | Create the local Git fixture repositories used by tests and smoke runs. |
@@ -131,8 +135,16 @@ selects the runner in the worker loop.
 | `numbers-jdk21-v1` | `submit-repo` | `repo.repo_workflow` | One editable `Numbers.java` in a local repo; 3 attempts max — 1 build repair + 1 review correction. |
 | `gradle-junit-v1` | `submit-gradle` | `gradle.gradle_workflow` | One approved file from committed `.nullcode.json`, offline Gradle/JUnit build, 2 attempts (1 correction). |
 | `repo-plan-v1` | `submit-plan` | `repo.repo_plan_workflow` | Read-only inspection and planning: select ≤3 files, produce a validated JSON plan. No edits. |
+| `repo-scope-v1` | `submit-scope` | `repo.repo_scope_workflow` | Read-only scope **proposal** for a later `repo-execute-v1` task: two model calls, deterministic validation, no edits, no execution, never publishable. Grants nothing ([7C-1](milestones/MILESTONE-7C-1.md)). |
 | `repo-execute-v1` | `submit-execute` | `repo.repo_execute_workflow` | Planned, bounded multi-file edit of approved production **and** test files; ≤2 repairs, each routed by a typed `fault_domain` that must agree with its target file ([7B.2](milestones/MILESTONE-7B-2.md)). |
 | `accepted-java-v1` | `submit-accepted` | `repo.accepted_workflow` | Edits one production file against **committed, human-reviewed** acceptance tests; ≤2 repairs. |
+
+Nothing consumes a `repo-scope-v1` proposal. The separate command
+`python -m nullcode.repo.repo_scope_review WORKFLOW_ID --scope-reviewed` renders
+the `.nullcode.json` diff that would grant it into the workflow directory;
+`--scope-reviewed` is a human attestation of review, **not** edit authority.
+The grant is a human editing and committing `.nullcode.json`; only that commit
+changes what `repo-execute-v1` may edit.
 
 ### Execution model, common to the repository profiles
 
@@ -183,7 +195,8 @@ set it programmatically.**
 ## 5. Publishing / PR flow
 
 `publish/publish_workflow.py` is an explicit CLI step. The worker never
-publishes on its own.
+publishes on its own. `repo-scope-v1` workflows are refused first, before any
+other dispatch: `Scope proposal workflows are not publishable`.
 
 For `repo-execute-v1`, it delegates local validation to
 `publish/repo_execute_publish.py`. That validator resolves the authoritative
@@ -251,10 +264,13 @@ Container cleanup failure invalidates a pass.
 4. Review and acceptance gates are preconditions for committing — not advisory.
 5. Attempt budgets are fixed; infrastructure errors never consume a repair.
 6. Publishing is explicit, human-initiated, draft-only, and never merges.
-7. `--acceptance-reviewed` represents a human decision.
+7. `--acceptance-reviewed` and `--scope-reviewed` represent human decisions;
+   neither is ever defaulted, inferred or set programmatically.
 8. Prompts exceeding the 2000-byte controller limit raise; nothing is truncated.
 9. Runtime state stays outside the package and outside Git.
 10. `core.java_workflow`'s lazy profile imports stay lazy.
+11. Edit authority is only the committed `.nullcode.json` at the pinned base.
+    A scope proposal or rendered grant diff is never read as authority.
 
 ## 9. Future direction *(not implemented)*
 
@@ -262,13 +278,13 @@ The 7B.2 hardening increment (typed repair-target routing) is implemented; see
 [`milestones/MILESTONE-7B-2.md`](milestones/MILESTONE-7B-2.md). It changed no
 budget, limit or gate. Its live Pi validation is still outstanding.
 
-The next planned autonomy increment is 7C-1: model-proposed scope with a
-separate human grant. The current design proposal is
-[`milestones/PROPOSAL-7C-1.md`](milestones/PROPOSAL-7C-1.md); it is not yet
-implemented and does not weaken committed `.nullcode.json` authority.
+7C-1 (model-proposed scope with a separate human grant) is implemented; see
+[`milestones/MILESTONE-7C-1.md`](milestones/MILESTONE-7C-1.md). It does not
+weaken committed `.nullcode.json` authority. Its live Pi validation is
+outstanding.
 
 After that, the planned autonomy step is GitHub issue/task ingestion feeding the
 same bounded execution and draft-PR path. Explicitly **not** present today:
-automatic scope grants, autonomous task selection, automatic PR publication,
+automatic scope grants (7C-1 only proposes and renders), autonomous task selection, automatic PR publication,
 multi-worker concurrency, non-Java languages, Maven, dependency resolution
 inside job containers, or any merge capability.

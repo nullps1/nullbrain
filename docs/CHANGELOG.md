@@ -9,6 +9,38 @@ milestone 6 are ordered by increment, not by date.
 
 ## Unreleased
 
+### 7C-1 — model-proposed scope, human-granted scope — 2026-09-25
+
+- Add the read-only profile `repo-scope-v1` (`submit-scope`). It makes two
+  model calls: candidate selection from 7A's committed inventory, then a final
+  proposal over complete contents of only the accepted paths. Validation is
+  deterministic. Call 2 may only narrow call 1 within each class, so a context
+  file can never become edit scope. It does not edit, stage, commit, push,
+  run Gradle or publish, and it hands nothing to `repo-execute-v1`.
+- A proposal must be a selection current `repo-execute-v1` could make once
+  granted: 1+ production and 1+ test file, 3 files at most, 900 bytes each, the
+  resulting configuration within 8 + 8 and accepted by 7B's own validators.
+  `.nullcode.json`, `build.gradle`, `settings.gradle` and `gradle.properties`
+  are never edit scope. At most one context file is allowed, chosen from prompt
+  measurements. The 2000-byte limit is unchanged; overflow fails closed.
+- Add `python -m nullcode.repo.repo_scope_review <id> --scope-reviewed`. It
+  renders the `.nullcode.json` grant diff into the workflow directory and never
+  touches the target repository. `--scope-reviewed` is a required human
+  attestation, not edit authority. The grant is a human commit.
+- The publisher refuses `repo-scope-v1` first: `Scope proposal workflows are
+  not publishable`. Worker dispatch now names the profile explicitly, instead
+  of letting it fall through to the legacy editing profile.
+- Extract 7B/Gradle scope predicates into pure helpers
+  (`validate_editable_files`, `validate_editable_test_files`,
+  `check_source_limit`, …) with identical behavior, so 7C-1 is judged by the
+  same code. No 7B budget, limit or gate changed.
+- Tests: 227 → 304 unittest cases (`test_repo_scope_workflow.py`,
+  `test_scope_authority.py`), including import-graph, read-audit and
+  human-commit tests showing proposals are inert. All recorded mutations are
+  caught. pytest: 304 passed plus the same pre-existing collection error.
+  **Live Pi validation outstanding.** See
+  [MILESTONE-7C-1](milestones/MILESTONE-7C-1.md).
+
 ### Workflows 34–35 live validation — 2026-09-25
 
 - Record [Workflow 34](workflows/WORKFLOW-034.md): a second live 7B.2

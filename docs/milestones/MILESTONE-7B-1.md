@@ -257,7 +257,7 @@ change inside this patch.
 
 | Fixture | Shape | Outcome |
 | --- | --- | --- |
-| D1 | Workflow 26-style no-delta | re-plan runs; rescued run succeeds, repeated no-delta terminates `rejected-no-behavioral-delta` |
+| D1 | [Workflow 26](../workflows/WORKFLOW-026.md)-style no-delta | re-plan runs; rescued run succeeds, repeated no-delta terminates `rejected-no-behavioral-delta` |
 | D2 | assertion-level change | `distinguishing-test-failure`, `evidence_level=behavioral`, succeeds |
 | D3 | legitimate new API | `distinguishing-api-compile-failure`, `evidence_level=structural`, succeeds under Policy A |
 | D4 | trivial new API (adversarial) | identical evidence to D3 — the basis of the policy decision |

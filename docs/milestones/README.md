@@ -65,3 +65,7 @@ the commands and validation boundaries from the time they were written.
 
 New milestones and notable live workflows follow the documentation-trail
 convention in [`../PROJECT_STATE.md` §11](../PROJECT_STATE.md#11-documentation-trail-convention).
+
+Records of notable live workflow executions, such as the runs that motivated
+or validated these increments, live under [`../workflows/`](../workflows/).
+Milestone documents link to them instead of repeating run details.

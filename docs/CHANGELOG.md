@@ -9,6 +9,27 @@ milestone 6 are ordered by increment, not by date.
 
 ## Unreleased
 
+### Workflow execution records — 2026-09-25
+
+- Add [`workflows/`](workflows/README.md): durable records of notable live
+  workflow executions, kept separate from the capability-focused milestone
+  records, with an index, the criteria for writing a record and a template.
+- Record [Workflow 25](workflows/WORKFLOW-025.md) (insufficient-test-count
+  repair narrowing), [Workflow 26](workflows/WORKFLOW-026.md) (behavioral-delta
+  evidence), [Workflow 32](workflows/WORKFLOW-032.md) (the routing
+  contradiction that motivated 7B.2) and
+  [Workflow 33](workflows/WORKFLOW-033.md), the first live Pi run of 7B.2.
+  It **failed safely**: both repair routes were typed `test` routes and were
+  accepted, re-verification caught a bad repair, and the 2000-byte prompt
+  limit stopped repair 2. No commit or publication. Live production-domain
+  routing remains unproven.
+- Cross-link the records from the 7B hardening, 7B.1 and 7B.2 milestone
+  documents, the milestone index, `PROJECT_STATE.md` and `README.md`. Add a
+  live validation section (§15) to 7B.2, and extend the documentation-trail
+  convention to cover workflow records.
+- Documentation only. No source, test, configuration or runtime change, and
+  no runtime artifacts (`jobs/`) committed.
+
 ### Milestone 7B.2: typed repair-target routing — 2026-09-25
 
 - Require a typed `fault_domain` (`production` | `test`, exact match only) in

@@ -44,7 +44,7 @@ state and the next intended milestone.
 | Fixtures | `src/nullcode/fixtures/` | Generators for the local Git repositories the smoke tests use. |
 | Tests | `tests/` | 227 unittest cases: real Git and SQLite, simulated inference and Docker. |
 | Deployment | `compose/`, `deploy/` | Compose files for the controller and Ollama; the worker systemd unit. |
-| Documentation | `docs/` | Architecture, current state, changelog and the milestone record. |
+| Documentation | `docs/` | Architecture, current state, changelog, the milestone record and notable workflow records. |
 
 ## Requirements
 
@@ -117,6 +117,7 @@ including live workflows that failed closed.
 | How is it structured and why? | [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) |
 | What changed when? | [`docs/CHANGELOG.md`](docs/CHANGELOG.md) |
 | How was each increment built and tested? | [`docs/milestones/`](docs/milestones/) |
+| What happened in notable live runs? | [`docs/workflows/`](docs/workflows/) |
 | What is the controller API? | [`rust/README.md`](rust/README.md) |
 | Why are there snapshot directories? | [`checkpoints/README.md`](checkpoints/README.md) |
 

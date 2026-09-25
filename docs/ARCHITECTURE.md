@@ -131,7 +131,7 @@ selects the runner in the worker loop.
 | `numbers-jdk21-v1` | `submit-repo` | `repo.repo_workflow` | One editable `Numbers.java` in a local repo; 3 attempts max — 1 build repair + 1 review correction. |
 | `gradle-junit-v1` | `submit-gradle` | `gradle.gradle_workflow` | One approved file from committed `.nullcode.json`, offline Gradle/JUnit build, 2 attempts (1 correction). |
 | `repo-plan-v1` | `submit-plan` | `repo.repo_plan_workflow` | Read-only inspection and planning: select ≤3 files, produce a validated JSON plan. No edits. |
-| `repo-execute-v1` | `submit-execute` | `repo.repo_execute_workflow` | Planned, bounded multi-file edit of approved production **and** test files; ≤2 repairs. |
+| `repo-execute-v1` | `submit-execute` | `repo.repo_execute_workflow` | Planned, bounded multi-file edit of approved production **and** test files; ≤2 repairs, each routed by a typed `fault_domain` that must agree with its target file ([7B.2](milestones/MILESTONE-7B-2.md)). |
 | `accepted-java-v1` | `submit-accepted` | `repo.accepted_workflow` | Edits one production file against **committed, human-reviewed** acceptance tests; ≤2 repairs. |
 
 ### Execution model, common to the repository profiles
@@ -258,13 +258,12 @@ Container cleanup failure invalidates a pass.
 
 ## 9. Future direction *(not implemented)*
 
-The immediate next design item is a hardening increment, 7B.2: typed
-repair-target routing inside `repo-execute-v1`, proposed in
-[`milestones/PROPOSAL-7B-2.md`](milestones/PROPOSAL-7B-2.md). It changes no
-budget, limit or gate.
+The 7B.2 hardening increment (typed repair-target routing) is implemented; see
+[`milestones/MILESTONE-7B-2.md`](milestones/MILESTONE-7B-2.md). It changed no
+budget, limit or gate. Its live Pi validation is still outstanding.
 
-The next planned autonomy increment, after 7B.2, is 7C-1: model-proposed scope
-with a separate human grant. The current design proposal is
+The next planned autonomy increment is 7C-1: model-proposed scope with a
+separate human grant. The current design proposal is
 [`milestones/PROPOSAL-7C-1.md`](milestones/PROPOSAL-7C-1.md); it is not yet
 implemented and does not weaken committed `.nullcode.json` authority.
 

@@ -35,7 +35,7 @@ class RepoExecutePublishTests(unittest.TestCase):
         # fully pass).
         verifications = [evidence(13), evidence(12), workflow.HYBRID_DISTINGUISHING]
         if repaired:
-            answers += [json.dumps({'file': workflow.PROD_TARGET, 'reason': 'Fix production'}),
+            answers += [json.dumps({'fault_domain': 'production', 'file': workflow.PROD_TARGET, 'reason': 'Fix production'}),
                         workflow.GOOD_PROD_REPAIRED]
             verifications.insert(0, {'passed': False, 'repairable': True,
                                      'junit': {'diagnostics': 'wrong result'}})

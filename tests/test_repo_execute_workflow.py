@@ -196,8 +196,18 @@ REPLAN_PLAN = (
     '"risks": []}'
 )
 
-REPAIR_TEST_FILE = '{"file": "' + TEST_TARGET + '", "reason": "Baseline tests were dropped"}'
-REPAIR_PROD_FILE = '{"file": "' + PROD_TARGET + '", "reason": "Blame the implementation"}'
+# Milestone 7B.2: repair routing replies are typed. Each canned reply names the
+# fault domain that agrees with its file, so the tests below keep protecting
+# what they protected before; the routing rules themselves are covered in
+# test_repair_routing.py.
+REPAIR_TEST_FILE = (
+    '{"fault_domain": "test", "file": "' + TEST_TARGET + '", '
+    '"reason": "Baseline tests were dropped"}'
+)
+REPAIR_PROD_FILE = (
+    '{"fault_domain": "production", "file": "' + PROD_TARGET + '", '
+    '"reason": "Blame the implementation"}'
+)
 
 
 def add_editable_test_files(repo, test_files):
@@ -332,7 +342,7 @@ class RepoExecuteWorkflowTests(ExecuteWorkflowHarness):
         job_id, result, prompts = self.run_case(
             answers=[
                 SELECTION, PLAN, GOOD_PROD, GOOD_TEST,
-                '{"file": "' + PROD_TARGET + '", "reason": "Production logic is wrong"}',
+                '{"fault_domain": "production", "file": "' + PROD_TARGET + '", "reason": "Production logic is wrong"}',
                 GOOD_PROD_REPAIRED,
             ],
             verify_results=[
@@ -350,7 +360,7 @@ class RepoExecuteWorkflowTests(ExecuteWorkflowHarness):
         _, result, prompts = self.run_case(
             answers=[
                 SELECTION, PLAN, GOOD_PROD, GOOD_TEST,
-                '{"file": "src/main/java/lab/TextStats.java", "reason": "unrelated file"}',
+                '{"fault_domain": "production", "file": "src/main/java/lab/TextStats.java", "reason": "unrelated file"}',
             ],
             verify_results=[
                 {'passed': False, 'repairable': True,
@@ -364,7 +374,7 @@ class RepoExecuteWorkflowTests(ExecuteWorkflowHarness):
         _, result, prompts = self.run_case(
             answers=[
                 SELECTION, PLAN, GOOD_PROD, GOOD_TEST,
-                '{"file": "' + PROD_TARGET + '", "reason": "try again"}',
+                '{"fault_domain": "production", "file": "' + PROD_TARGET + '", "reason": "try again"}',
                 GOOD_PROD,  # identical to the candidate already in place
             ],
             verify_results=[
@@ -459,7 +469,7 @@ class RepoExecuteWorkflowTests(ExecuteWorkflowHarness):
         _, result, prompts = self.run_case(
             answers=[
                 SELECTION, PLAN, GOOD_PROD, self.same_count_test_edit(),
-                '{"file": "' + PROD_TARGET + '", "reason": "Production logic is wrong"}',
+                '{"fault_domain": "production", "file": "' + PROD_TARGET + '", "reason": "Production logic is wrong"}',
                 GOOD_PROD_REPAIRED,
             ],
             verify_results=[
@@ -535,9 +545,10 @@ class RepoExecuteWorkflowTests(ExecuteWorkflowHarness):
 
         repair_prompt = prompts[4]
         self.assertIn(TEST_TARGET, repair_prompt)
-        self.assertNotIn(
-            '"' + PROD_TARGET + '"',
-            repair_prompt.split('Selected files: ')[1].splitlines()[0],
+        self.assertNotIn(PROD_TARGET, repair_prompt)
+        self.assertEqual(
+            repair_prompt.split('Production files: ')[1].splitlines()[0],
+            '[]',
         )
 
     def test_insufficient_count_repair_still_rejects_unselected_files(self):
@@ -546,7 +557,7 @@ class RepoExecuteWorkflowTests(ExecuteWorkflowHarness):
         _, result, _ = self.run_case(
             answers=[
                 SELECTION, PLAN, GOOD_PROD, REDUCED_TEST,
-                '{"file": "src/main/java/lab/TextStats.java", "reason": "no"}',
+                '{"fault_domain": "production", "file": "src/main/java/lab/TextStats.java", "reason": "no"}',
             ],
             verify_results=[SHORT_COUNT],
         )

@@ -1,5 +1,10 @@
 # Proposal 7B.2: typed repair-target routing
 
+> **Implemented as [Milestone 7B.2](MILESTONE-7B-2.md).** This proposal is kept
+> unchanged below as the design record. The implementation settled its open
+> questions (§12) in the milestone document's §9. Where the two differ, the
+> milestone record describes current behavior.
+
 **Status: proposal only. Nothing described here is implemented.** This document
 exists so the 7B.2 design can be argued about before any code is written. It
 makes no claim of verification and is not an approval of the design. It was

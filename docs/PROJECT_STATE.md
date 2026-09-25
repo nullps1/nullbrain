@@ -1,12 +1,13 @@
 # NullCode project state
 
-**Updated:** 2026-09-25, after the Patient Zero compatibility tests merged to
-`main` and Workflow 32 ran live on the Pi.
-**Current main:** `c707140` (merge of PR #7, Patient Zero compatibility tests).
+**Updated:** 2026-09-25, with Milestone 7B.2 (typed repair-target routing)
+implemented on a feature branch and awaiting review.
+**Base main:** `119cd3b` (merge of PR #8, Workflow 32 record and Proposal 7B.2).
 **Key implementation commits:** `34fc203` (7C-2 publisher), `53e09bb` / `6c78080`
 (7C-2 hardening/docs), `88c015b` (insufficient-test-count repair), `a48d419`
 (behavioral-delta gate), `3c7e724` (7B.1 evidence hardening + semantic
-re-plan), and `60c15ce` (Patient Zero compatibility tests, test-only).
+re-plan), `60c15ce` (Patient Zero compatibility tests, test-only), and
+`3cd3ed1` (7B.2 typed repair routing).
 Development branches are deleted after merge; commits are the durable
 references.
 
@@ -17,7 +18,42 @@ historical unless a later section repeats them. Sections 1–9 retain the
 refactor-era snapshot, refreshed where marked. Sections 10 and 11 are current
 rules.
 
-## Current update: Patient Zero compatibility and Workflow 32
+## Current update: 7B.2 — typed repair-target routing
+
+Workflow 32's failure mode is now caught at the point it happens. Every
+`repo-execute-v1` repair-selection reply must carry `fault_domain`, exactly
+`"production"` or `"test"`. The named file must be one of the offered
+candidates in that domain, where membership comes from the approved
+`editable_files` / `editable_test_files` lists. A missing, malformed, unknown,
+legacy-shaped or contradictory reply fails the workflow with the ordinary
+`failed` status before any repair-edit prompt is built. The workflow never
+auto-corrects, never parses `reason`, and never asks a second time. An
+insufficient-executed-test-count failure additionally requires the `test`
+domain.
+
+Evidence: `fault_domain` is recorded in `repair-selection.json`, the repair
+`result.json` and the failure record's repair history. A new
+`repair-routing.json` preserves every routing reply, accepted or rejected.
+
+The repair-selection prompt carries the typed schema and domain-grouped
+candidates, yet is 29–31 bytes *smaller* than before. Patient Zero 1+1 shapes
+measure 916–946 bytes. Worst-case inputs still exceed 2000 bytes and fail
+closed. No budget, cap, limit or gate changed: two repairs per candidate, one
+semantic re-plan, the 2000/700/900-byte limits and the 3-file cap all stand.
+
+**Honest limit:** the validator proves that the domain and the file agree, not
+that they are right. A consistent-but-wrong reply (production domain, production
+file, prose blaming the test) is accepted and behaves exactly as before 7B.2.
+
+Validation on Linux with canned inference and verification: **unittest 227
+tests, OK** (up from 190), and **pytest 227 passed plus 1 error**, the same
+pre-existing collection error, neither fixed nor worsened. Workflow 32 and its
+mirror are regression tests, and all nine mutations applied to throwaway
+copies were caught. **Live Pi validation is outstanding.** See
+[7B.2](milestones/MILESTONE-7B-2.md), which includes the prompt measurements,
+the mutation table and the live plan.
+
+## Previous update: Patient Zero compatibility and Workflow 32
 
 **Patient Zero compatibility is merged and live on the Pi.** "Patient Zero" is
 the upgraded external Java lab (`nullcode-java-lab`), the first repository
@@ -59,8 +95,8 @@ to count punctuation marks in the text.") succeeded. The generated
 an input containing 31 punctuation characters, so verification failed with
 `expected: <4> but was: <31>`. The repair-selection model then replied with a
 reason blaming the **test** expectation but a target naming the **production**
-file. `validate_repair_selection(...)` checks only JSON shape, approved scope
-and a non-empty reason, so it accepted the contradiction; the production file
+file. `validate_repair_selection(...)` then checked only JSON shape, approved
+scope and a non-empty reason (before 7B.2), so it accepted the contradiction; the production file
 came back unchanged and the workflow failed closed on
 `Repair 1 returned unchanged source`. No commit, no publication. Every
 existing gate held; the only repair that could have succeeded was spent on the
@@ -71,10 +107,11 @@ is now the immediate next design item. It proposes a closed
 `fault_domain` (`production` | `test`) in the repair-selection reply and a
 deterministic check that the file agrees with it, failing closed on any
 contradiction, with no auto-correction, no reselection, and no change to any
-budget or gate. It is a proposal; nothing is implemented. **7C-1 remains the
+budget or gate. It was a proposal at the time; it has since been implemented
+(see the current update above). **7C-1 remains the
 next autonomy milestone, planned after this hardening work.**
 
-## Previous update: 7B.1 — behavioral-delta evidence hardening
+## Earlier update: 7B.1 — behavioral-delta evidence hardening
 
 The behavioral-delta gate treated two unequal kinds of evidence as
 interchangeable and made a no-delta verdict terminal on the first attempt.
@@ -249,7 +286,7 @@ src/nullcode/
   fixtures/  create_fixture.py  create_gradle_fixture.py
   acceptance/  contract.json  TextStatsAcceptanceTest.java   (package data)
 rust/        Cargo.toml  src/main.rs  Dockerfile  README.md
-tests/       12 test modules, 190 unittest cases (as of c707140)
+tests/       13 test modules, 227 unittest cases (with 7B.2)
 scripts/     smoke.py
 ```
 
@@ -307,6 +344,7 @@ and `compose/ollama.compose.yml`, and the controller build context is `rust/`.
 | 7B | Planned, bounded multi-file execution | [`milestones/MILESTONE-7B.md`](milestones/MILESTONE-7B.md) |
 | 7B hardening | Behavioral-novelty validation | [`milestones/MILESTONE-7B-HARDENING.md`](milestones/MILESTONE-7B-HARDENING.md) |
 | 7B.1 | Behavioral-delta evidence hardening | [`milestones/MILESTONE-7B-1.md`](milestones/MILESTONE-7B-1.md) |
+| 7B.2 | Typed repair-target routing (live Pi validation outstanding) | [`milestones/MILESTONE-7B-2.md`](milestones/MILESTONE-7B-2.md) |
 | 7C-2 | Multi-file draft PR publishing | [`milestones/MILESTONE-7C-2.md`](milestones/MILESTONE-7C-2.md) |
 | — | Acceptance-gated production edits (`accepted-java-v1`) | [`milestones/ACCEPTED-JAVA-V1.md`](milestones/ACCEPTED-JAVA-V1.md) |
 | — | `javac`-driven repair rule (`javac-string-array-stream-loop-v1`) | [`milestones/JAVAC-REPAIR-RULE.md`](milestones/JAVAC-REPAIR-RULE.md) |
@@ -357,15 +395,17 @@ and `compose/ollama.compose.yml`, and the controller build context is `rust/`.
    `timing.json` is written for every workflow and real Pi workflow timings now
    exist, but the sample is too small and task-specific to justify a threshold
    or optimization target.
-12. **Repair routing is untyped.** The repair-selection reply carries its fault
-   diagnosis (implementation vs. test expectation) only in free-text `reason`,
-   so `validate_repair_selection(...)` cannot detect a reply whose reason and
-   target file disagree. Workflow 32 hit exactly this and failed closed one
-   model call later on the unchanged-source guard. Proposed fix:
-   [7B.2](milestones/PROPOSAL-7B-2.md).
+12. **Repair routing checks agreement, not correctness.** Since
+   [7B.2](milestones/MILESTONE-7B-2.md), a reply whose `fault_domain` and file
+   disagree fails closed (Workflow 32's shape). A reply whose typed fields
+   agree but whose choice is wrong is still accepted; `reason` is never
+   parsed. Such a reply then meets the unchanged-source guard and the later
+   gates, as before. (Before 7B.2 the diagnosis was untyped and a
+   contradiction could not be detected at all.)
 13. **The suite is not clean under pytest.** `pytest` reports one collection
    error (an imported production helper named `test_*` is collected as a test);
-   `unittest` runs the same 190 cases cleanly. See the current update above.
+   `unittest` runs the same cases cleanly (227 with 7B.2). See the Patient
+   Zero update above.
 
 ## 7. Checkpoint snapshots
 
@@ -393,8 +433,8 @@ leave them in place. `checkpoints/README.md` repeats this.
 
 ```sh
 # Python (no install needed)
-PYTHONPATH=src python3 -m unittest discover -s tests   # expect: Ran 190 tests ... OK
-pytest -q                                              # expect: 190 passed, 1 error (known collection
+PYTHONPATH=src python3 -m unittest discover -s tests   # expect: Ran 227 tests ... OK
+pytest -q                                              # expect: 227 passed, 1 error (known collection
                                                        #   error, see §6 item 13) - not a clean run
 
 # Rust controller
@@ -420,13 +460,14 @@ PYTHONPATH=src python3 -m nullcode.core.java_workflow wait <id>
 **Active direction:** move from human-preselected edit scope toward controlled
 task autonomy without weakening the existing deterministic gates.
 
-**Immediate next design item: 7B.2 — typed repair-target routing.** A
-hardening increment motivated by Workflow 32, designed in
-[`milestones/PROPOSAL-7B-2.md`](milestones/PROPOSAL-7B-2.md). It is a proposal,
-not implemented behavior, and it changes no budget, limit, scope rule or gate.
+**7B.2 — typed repair-target routing is implemented** (see
+[`milestones/MILESTONE-7B-2.md`](milestones/MILESTONE-7B-2.md)); the design
+record is [`milestones/PROPOSAL-7B-2.md`](milestones/PROPOSAL-7B-2.md). Its
+remaining step is live Pi validation against the Patient Zero lab, following
+the plan in the milestone record's §14.
 
-**Next autonomy milestone, after 7B.2: 7C-1 — model-proposed scope,
-human-granted scope.** The current design lives in
+**Next autonomy milestone: 7C-1 — model-proposed scope, human-granted
+scope.** The current design lives in
 [`milestones/PROPOSAL-7C-1.md`](milestones/PROPOSAL-7C-1.md) and is still a
 proposal, not implemented behavior. The invariant is unchanged: a model may
 propose a scope, but only a human can grant it by changing committed policy.

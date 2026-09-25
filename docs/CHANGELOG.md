@@ -9,6 +9,33 @@ milestone 6 are ordered by increment, not by date.
 
 ## Unreleased
 
+### Milestone 7B.2: typed repair-target routing — 2026-09-25
+
+- Require a typed `fault_domain` (`production` | `test`, exact match only) in
+  every `repo-execute-v1` repair-selection reply, and deterministically require
+  the named file to be an offered candidate in that domain. Membership comes
+  from the approved `editable_files` / `editable_test_files` lists, not from a
+  new path rule.
+- Missing, malformed, unknown, legacy-shaped and contradictory replies now fail
+  the workflow (`failed`) before any repair-edit prompt is built. There is no
+  auto-correction, no parsing of `reason`, no reselection and no extra repair.
+  An insufficient-executed-test-count failure additionally requires the `test`
+  domain.
+- Record `fault_domain` in `repair-selection.json`, the repair `result.json`
+  and the failure record's repair history; add `repair-routing.json`, which
+  preserves every routing reply, accepted or rejected.
+- Rework the repair-selection prompt to carry the typed schema and
+  domain-grouped candidates, while shrinking it by 29–31 bytes. The 2000-byte
+  limit and every budget, cap and gate are unchanged.
+- Encode Workflow 32 and its mirror as regression tests; add
+  `tests/test_repair_routing.py` (37 tests). Existing canned repair replies
+  were updated to the typed shape with the matching domain. Nine mutations
+  were applied to throwaway copies, and every one was caught. Suite: 227
+  unittest cases, up from 190; pytest 227 passed plus the same pre-existing
+  collection error.
+- Validated on Linux with canned inference and verification only. **Live Pi
+  validation is outstanding.** See [7B.2](milestones/MILESTONE-7B-2.md).
+
 ### Patient Zero validation, Workflow 32 and Proposal 7B.2 — 2026-09-25
 
 - Merge Patient Zero compatibility regression coverage (PR #7, `60c15ce`):

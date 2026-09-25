@@ -734,19 +734,53 @@ def verification_diagnostic(result, minimum=None):
 
     return diagnostic
 
-def repair_selection_prompt(task, plan, selected, diagnostic):
+# ---------------------------------------------------------------------------
+# Typed repair-target routing (Milestone 7B.2)
+# ---------------------------------------------------------------------------
+# The repair-selection reply names a fault domain as well as a file, and the
+# two must agree. Workflow 32 replied with a reason blaming the test
+# expectation and a target naming the production file; nothing deterministic
+# could see that, because the diagnosis lived only in prose.
+#
+# The validator checks agreement between two model claims. It cannot check
+# that either claim is right, it never parses `reason`, and it never corrects
+# a contradiction: a contradictory or malformed reply fails the workflow.
+# There is no second routing call.
+FAULT_DOMAIN_PRODUCTION = "production"
+FAULT_DOMAIN_TEST = "test"
+FAULT_DOMAINS = (FAULT_DOMAIN_PRODUCTION, FAULT_DOMAIN_TEST)
+
+
+def repair_route_domains(candidates, production, tests):
+    """Offered repair candidates grouped by fault domain.
+
+    Membership comes from the approved editable_files / editable_test_files
+    lists the workflow already validated the selection against - never from
+    a path heuristic. Only offered candidates appear, so grouping can remove
+    choices but never add one.
+    """
+    return {
+        FAULT_DOMAIN_PRODUCTION: [n for n in candidates if n in production],
+        FAULT_DOMAIN_TEST: [n for n in candidates if n in tests],
+    }
+
+
+def repair_selection_prompt(task, plan, candidates, diagnostic, production, tests):
+    # ADVISORY ONLY. The prompt asks for a fault domain and a file listed
+    # under it; validate_repair_selection() is what enforces the agreement.
+    domains = repair_route_domains(candidates, production, tests)
     prompt = (
-        "A Java repository change failed verification. "
-        "Choose exactly ONE already-selected file to repair. "
-        "Do not write code. Determine whether the failure comes from the "
-        "implementation or from an incorrect test expectation. "
-        "Reason literally from the task semantics; do not assume the expected "
-        "test value is correct merely because JUnit reports it as expected. "
-        "For wording such as 'longer than N', use strict > N semantics. "
-        "Return JSON only: "
-        '{"file":"selected/path.java","reason":"short evidence-based explanation"}.\n'
+        "A Java change failed verification. Pick ONE listed file to repair; "
+        "do not write code. fault_domain is \"production\" if the "
+        "implementation is wrong, \"test\" if a test expectation is wrong; "
+        "file must be listed under that domain. Reason literally from the "
+        "task; a JUnit expected value may itself be wrong. For 'longer than "
+        "N', use strict > N. Return JSON only: "
+        '{"fault_domain":"production|test","file":"listed/path.java",'
+        '"reason":"short evidence-based explanation"}.\n'
         f"Task: {task}\n"
-        f"Selected files: {json.dumps(selected)}\n"
+        f"Production files: {json.dumps(domains[FAULT_DOMAIN_PRODUCTION])}\n"
+        f"Test files: {json.dumps(domains[FAULT_DOMAIN_TEST])}\n"
         f"Plan summary: {str(plan.get('summary', ''))[:220]}\n"
         "Verification failure:\n"
         f"{diagnostic}"
@@ -757,24 +791,57 @@ def repair_selection_prompt(task, plan, selected, diagnostic):
 
     return prompt
 
-def validate_repair_selection(data, selected):
+
+def validate_repair_selection(data, candidates, production, tests,
+                              required_domain=None, repair_number=1):
+    """Deterministic repair routing. Returns (fault_domain, file, reason).
+
+    Rejects, in order: a non-object reply; a missing, non-string or unknown
+    fault_domain (exact match only - no case folding, trimming, aliases or
+    default); a file outside the offered candidates; a domain other than the
+    one this failure class requires; a file not listed under the stated
+    domain; an empty reason. Nothing is inferred and nothing is corrected.
+    """
     if not isinstance(data, dict):
         raise ValueError("Repair selection must be a JSON object")
+
+    if "fault_domain" not in data:
+        raise ValueError(
+            f"Repair {repair_number} routing requires fault_domain"
+        )
+
+    domain = data["fault_domain"]
+
+    if type(domain) is not str or domain not in FAULT_DOMAINS:
+        raise ValueError(
+            f"Repair {repair_number} routing has invalid fault_domain: "
+            f"{json.dumps(domain)}"
+        )
 
     target = data.get("file")
     reason = data.get("reason")
 
-    if target not in selected:
+    if type(target) is not str or target not in candidates:
         raise ValueError(
             f"Repair selected an unapproved file: {target}"
+        )
+
+    if required_domain is not None and domain != required_domain:
+        raise ValueError(
+            f"Repair {repair_number} routing is contradictory: this failure "
+            f"requires fault_domain '{required_domain}'"
+        )
+
+    if target not in repair_route_domains(candidates, production, tests)[domain]:
+        raise ValueError(
+            f"Repair {repair_number} routing is contradictory: fault_domain "
+            f"'{domain}' but {target} is not a selected {domain} file"
         )
 
     if not isinstance(reason, str) or not reason.strip():
         raise ValueError("Repair selection requires a reason")
 
-    return target, reason.strip()
-
-
+    return domain, target, reason.strip()
 
 
 # ---------------------------------------------------------------------------
@@ -1791,6 +1858,8 @@ def run_job(store, job, generate_fn=generate, verify_fn=verify_gradle, artifacts
                     plan,
                     repair_candidates,
                     diagnostic,
+                    production,
+                    tests,
                 )
 
                 (repair_dir / "selection-prompt.txt").write_text(
@@ -1812,15 +1881,52 @@ def run_job(store, job, generate_fn=generate, verify_fn=verify_gradle, artifacts
                     encoding="utf-8",
                 )
 
-                repair_data = extract_json(answer)
+                # Routing evidence is written before validation, so a rejected
+                # reply is preserved exactly as the model gave it. A rejection
+                # ends the workflow: no reselection, no repair edit.
+                routing = {
+                    "repair_number": repair_number,
+                    "offered": repair_route_domains(
+                        repair_candidates, production, tests,
+                    ),
+                    "required_domain": (
+                        FAULT_DOMAIN_TEST if short_count else None
+                    ),
+                    "response": None,
+                    "accepted": False,
+                    "error": None,
+                }
 
-                repair_target, repair_reason = validate_repair_selection(
-                    repair_data,
-                    repair_candidates,
-                )
+                try:
+                    repair_data = extract_json(answer)
+                    routing["response"] = repair_data
+
+                    (
+                        repair_domain,
+                        repair_target,
+                        repair_reason,
+                    ) = validate_repair_selection(
+                        repair_data,
+                        repair_candidates,
+                        production,
+                        tests,
+                        required_domain=routing["required_domain"],
+                        repair_number=repair_number,
+                    )
+                except Exception as error:
+                    routing["error"] = str(error)
+                    raise
+                else:
+                    routing["accepted"] = True
+                finally:
+                    (repair_dir / "repair-routing.json").write_text(
+                        json.dumps(routing, indent=2),
+                        encoding="utf-8",
+                    )
 
                 repair_selection = {
                     "repair_number": repair_number,
+                    "fault_domain": repair_domain,
                     "file": repair_target,
                     "reason": repair_reason,
                 }
@@ -1949,6 +2055,7 @@ def run_job(store, job, generate_fn=generate, verify_fn=verify_gradle, artifacts
                 repair_result = {
                     "passed": candidate_result["passed"],
                     "repair_number": repair_number,
+                    "fault_domain": repair_domain,
                     "repair_target": repair_target,
                     "repair_reason": repair_reason,
                     "diagnostic": diagnostic,
@@ -1958,6 +2065,7 @@ def run_job(store, job, generate_fn=generate, verify_fn=verify_gradle, artifacts
 
                 repair_history.append({
                     "repair_number": repair_number,
+                    "fault_domain": repair_domain,
                     "repair_target": repair_target,
                     "repair_reason": repair_reason,
                     "passed": candidate_result["passed"],

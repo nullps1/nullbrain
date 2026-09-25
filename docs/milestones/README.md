@@ -16,6 +16,7 @@ historical record.
 | [MILESTONE-7C-2.md](MILESTONE-7C-2.md) | Multi-file draft PR publishing |
 | [MILESTONE-7B-HARDENING.md](MILESTONE-7B-HARDENING.md) | Behavioral-novelty validation |
 | [MILESTONE-7B-1.md](MILESTONE-7B-1.md) | Behavioral-delta evidence hardening |
+| [MILESTONE-7B-2.md](MILESTONE-7B-2.md) | Typed repair-target routing |
 | [ACCEPTED-JAVA-V1.md](ACCEPTED-JAVA-V1.md) | Acceptance-gated one-file production workflow |
 | [JAVAC-REPAIR-RULE.md](JAVAC-REPAIR-RULE.md) | Narrow javac `String[]#stream()` repair guidance |
 
@@ -29,7 +30,7 @@ not approvals and claim no verification.
 
 | Document | Increment |
 | --- | --- |
-| [PROPOSAL-7B-2.md](PROPOSAL-7B-2.md) | Typed repair-target routing (hardening; next design item) |
+| [PROPOSAL-7B-2.md](PROPOSAL-7B-2.md) | Typed repair-target routing — **implemented** as [7B.2](MILESTONE-7B-2.md); kept as the design record |
 | [PROPOSAL-7C-1.md](PROPOSAL-7C-1.md) | Model-proposed scope, human-granted scope (next autonomy milestone) |
 
 ## ⚠️ Commands in these documents are historical

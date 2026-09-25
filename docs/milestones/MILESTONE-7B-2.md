@@ -374,3 +374,26 @@ Against §14:
 Workflow 33 also shows that the repair-edit prompt budget (§7, §13) can be
 exceeded by a 1+1 selection at repair 2, not only by the 2+1 shapes measured
 here. The limit held; it was not raised.
+
+**[Workflow 34](../workflows/WORKFLOW-034.md): failed safely.** A targeted
+`countDigits(String)` task again produced a consistent live `test` route:
+the generated test expected 2 for `" 123 "`, while the implementation returned
+the correct value 3. The route to `TextStatsTest.java` was accepted and
+persisted, but the repair-edit prompt required 2300/2000 bytes and failed
+closed before repair inference. Human review also noticed that the generated
+implementation used `Character.isDigit`, broader than the task's stated
+ASCII `0-9` contract; that observation motivated Workflow 35.
+
+**[Workflow 35](../workflows/WORKFLOW-035.md): failed safely at coverage
+check.** The follow-up task explicitly required ASCII-only counting and a
+Unicode-digit test. Candidate verification passed 46/46 tests, and the original
+suite also passed 46/46 against candidate production. Because the editable
+test file changed without increasing the executed JUnit case count, the
+added-coverage gate rejected the candidate (`46 vs 46`) before behavioral
+delta or repair routing.
+
+After Workflows 33–35, live test-domain routing is well exercised, but §14
+step 3 remains outstanding: no live workflow has yet entered a
+`fault_domain: production` repair under 7B.2. A live contradictory typed route
+has also not been observed; that rejection path remains regression-tested
+rather than live-observed.

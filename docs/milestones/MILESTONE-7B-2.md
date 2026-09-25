@@ -27,7 +27,8 @@ domain and route the repair to the other.
 ## 2. Workflow 32 evidence
 
 Workflow 32 ran live on the Raspberry Pi against the Patient Zero Java lab
-after PR #7 merged.
+after PR #7 merged. The full run record, including inference job IDs and the
+execution path, is [Workflow 32](../workflows/WORKFLOW-032.md).
 
 | Field | Value |
 | --- | --- |
@@ -324,6 +325,9 @@ no function named `test_*`.
   Ollama, Docker/Gradle or the Patient Zero lab. The plan below has not been
   executed.
 
+  *Historical as of this record's writing. The first live run since then is
+  [Workflow 33](../workflows/WORKFLOW-033.md); see §15.*
+
 ## 14. Live validation still to do on the Pi
 
 1. Run the full suite under both `unittest` and `pytest`, and record them
@@ -340,3 +344,33 @@ no function named `test_*`.
 4. Confirm `repair-routing.json` and `fault_domain` appear for every repair.
 5. Record the workflow IDs, outcomes and any failures here and in
    `PROJECT_STATE.md`, per the documentation-trail convention.
+
+## 15. Live validation record
+
+Live runs against this milestone are recorded under
+[`../workflows/`](../workflows/). This section summarises what they establish
+for 7B.2. Each workflow record holds the run's details.
+
+**[Workflow 33](../workflows/WORKFLOW-033.md): failed safely.** This was the
+first live Pi run under 7B.2 and re-ran Workflow 32's task (§14 step 2). Both
+repair routes were typed `test` routes to the selected test file. Both were
+accepted, and both wrote `repair-routing.json` and `repair-selection.json`.
+Repair 1 produced contradictory test expectations, and re-verification caught
+them (48 tests / 2 failures before, 49 / 3 after). The repair-2 edit never ran:
+the unchanged 2000-byte prompt limit failed closed with `Complete repair
+context needs 2270/2000 bytes; nothing truncated`. No scope expansion, no
+commit, no publication.
+
+Against §14:
+
+| Step | Status |
+| --- | --- |
+| 1. Suite on the Pi under `unittest` and `pytest` | not recorded in repository documentation |
+| 2. Re-run Workflow 32's task | done: Workflow 33 took the consistent-`test` path and failed on existing gates (re-verification, then the prompt limit). A live contradiction rejection was not observed. |
+| 3. Production-domain task end to end | **outstanding**; live production-domain routing is unproven |
+| 4. `repair-routing.json` and `fault_domain` for every repair | observed for both repair routes in Workflow 33 |
+| 5. Record IDs and outcomes | this section, [Workflow 33](../workflows/WORKFLOW-033.md) and `PROJECT_STATE.md` |
+
+Workflow 33 also shows that the repair-edit prompt budget (§7, §13) can be
+exceeded by a 1+1 selection at repair 2, not only by the 2+1 shapes measured
+here. The limit held; it was not raised.

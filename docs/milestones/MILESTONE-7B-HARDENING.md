@@ -18,6 +18,8 @@ missing evidence, and a distinct terminal state for candidates that fail it.
 
 ## The defect (Workflow 26)
 
+The full run record is [Workflow 26](../workflows/WORKFLOW-026.md).
+
 The model claimed it would "add support for trimming leading and trailing
 hyphens in slugified strings". The pinned base (`6749c9b`) already contained:
 

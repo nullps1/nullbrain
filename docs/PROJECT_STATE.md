@@ -1,8 +1,9 @@
 # NullCode project state
 
-**Updated:** 2026-09-25, with Milestone 7B.2 (typed repair-target routing)
-implemented on a feature branch and awaiting review.
-**Base main:** `119cd3b` (merge of PR #8, Workflow 32 record and Proposal 7B.2).
+**Updated:** 2026-09-25, with dedicated workflow records under
+[`workflows/`](workflows/) and the first live Pi run of Milestone 7B.2
+(Workflow 33, failed safely).
+**Base main:** `2d6c6c0` (merge of PR #9, Milestone 7B.2).
 **Key implementation commits:** `34fc203` (7C-2 publisher), `53e09bb` / `6c78080`
 (7C-2 hardening/docs), `88c015b` (insufficient-test-count repair), `a48d419`
 (behavioral-delta gate), `3c7e724` (7B.1 evidence hardening + semantic
@@ -18,7 +19,36 @@ historical unless a later section repeats them. Sections 1–9 retain the
 refactor-era snapshot, refreshed where marked. Sections 10 and 11 are current
 rules.
 
-## Current update: 7B.2 — typed repair-target routing
+## Current update: workflow records and Workflow 33
+
+**Notable live workflows now get dedicated records** under
+[`workflows/`](workflows/README.md). Milestone documents describe
+capabilities and increments. Workflow records describe what a specific run
+did: scope, execution path, model decisions, verification, outcome, the gates
+that mattered and the runtime artifact paths (which stay outside Git). The
+first records are [Workflow 25](workflows/WORKFLOW-025.md) (insufficient-
+test-count repair narrowing), [Workflow 26](workflows/WORKFLOW-026.md)
+(behavioral-delta evidence), [Workflow 32](workflows/WORKFLOW-032.md) (the
+routing contradiction behind 7B.2) and [Workflow 33](workflows/WORKFLOW-033.md).
+Earlier sections below keep their inline workflow summaries as written.
+
+**Workflow 33 — first live Pi run of 7B.2 — failed safely.** It re-ran
+Workflow 32's task on the Patient Zero lab (`TextStats.java` +
+`TextStatsTest.java`). Both repair routes were typed, consistent `test`
+routes and were accepted, with `repair-routing.json` and
+`repair-selection.json` persisted. Repair 1 wrote contradictory test
+expectations, and re-verification caught them (48 tests / 2 failures before,
+49 / 3 after). The repair-2 edit never ran: the unchanged 2000-byte prompt
+limit failed closed (`Complete repair context needs 2270/2000 bytes; nothing
+truncated`). No scope expansion, no commit, no publication.
+
+This proves live typed test-domain routing, routing-artifact persistence,
+repair re-verification, the bounded two-repair budget, and that a valid route
+cannot bypass the prompt limit. **Live production-domain routing is still
+unproven**, and so is a live rejection of a contradictory route. See
+[7B.2 §15](milestones/MILESTONE-7B-2.md#15-live-validation-record).
+
+## Previous update: 7B.2 — typed repair-target routing
 
 Workflow 32's failure mode is now caught at the point it happens. Every
 `repo-execute-v1` repair-selection reply must carry `fault_domain`, exactly
@@ -53,7 +83,7 @@ copies were caught. **Live Pi validation is outstanding.** See
 [7B.2](milestones/MILESTONE-7B-2.md), which includes the prompt measurements,
 the mutation table and the live plan.
 
-## Previous update: Patient Zero compatibility and Workflow 32
+## Earlier update: Patient Zero compatibility and Workflow 32
 
 **Patient Zero compatibility is merged and live on the Pi.** "Patient Zero" is
 the upgraded external Java lab (`nullcode-java-lab`), the first repository
@@ -108,7 +138,7 @@ is now the immediate next design item. It proposes a closed
 deterministic check that the file agrees with it, failing closed on any
 contradiction, with no auto-correction, no reselection, and no change to any
 budget or gate. It was a proposal at the time; it has since been implemented
-(see the current update above). **7C-1 remains the
+(see the 7B.2 update above). **7C-1 remains the
 next autonomy milestone, planned after this hardening work.**
 
 ## Earlier update: 7B.1 — behavioral-delta evidence hardening
@@ -344,7 +374,7 @@ and `compose/ollama.compose.yml`, and the controller build context is `rust/`.
 | 7B | Planned, bounded multi-file execution | [`milestones/MILESTONE-7B.md`](milestones/MILESTONE-7B.md) |
 | 7B hardening | Behavioral-novelty validation | [`milestones/MILESTONE-7B-HARDENING.md`](milestones/MILESTONE-7B-HARDENING.md) |
 | 7B.1 | Behavioral-delta evidence hardening | [`milestones/MILESTONE-7B-1.md`](milestones/MILESTONE-7B-1.md) |
-| 7B.2 | Typed repair-target routing (live Pi validation outstanding) | [`milestones/MILESTONE-7B-2.md`](milestones/MILESTONE-7B-2.md) |
+| 7B.2 | Typed repair-target routing (live test-domain routing validated by Workflow 33; production-domain routing outstanding) | [`milestones/MILESTONE-7B-2.md`](milestones/MILESTONE-7B-2.md) |
 | 7C-2 | Multi-file draft PR publishing | [`milestones/MILESTONE-7C-2.md`](milestones/MILESTONE-7C-2.md) |
 | — | Acceptance-gated production edits (`accepted-java-v1`) | [`milestones/ACCEPTED-JAVA-V1.md`](milestones/ACCEPTED-JAVA-V1.md) |
 | — | `javac`-driven repair rule (`javac-string-array-stream-loop-v1`) | [`milestones/JAVAC-REPAIR-RULE.md`](milestones/JAVAC-REPAIR-RULE.md) |
@@ -462,9 +492,11 @@ task autonomy without weakening the existing deterministic gates.
 
 **7B.2 — typed repair-target routing is implemented** (see
 [`milestones/MILESTONE-7B-2.md`](milestones/MILESTONE-7B-2.md)); the design
-record is [`milestones/PROPOSAL-7B-2.md`](milestones/PROPOSAL-7B-2.md). Its
-remaining step is live Pi validation against the Patient Zero lab, following
-the plan in the milestone record's §14.
+record is [`milestones/PROPOSAL-7B-2.md`](milestones/PROPOSAL-7B-2.md).
+[Workflow 33](workflows/WORKFLOW-033.md) was its first live Pi run: typed
+test-domain routing held, and the run failed safely on existing gates. The
+remaining live step is a task whose natural failure is a production bug, to
+exercise `production` routing end to end (milestone record §14 step 3, §15).
 
 **Next autonomy milestone: 7C-1 — model-proposed scope, human-granted
 scope.** The current design lives in
@@ -514,13 +546,27 @@ The trail records, where applicable:
 - limitations, failed paths and anything not verified;
 - follow-up or next action.
 
+Documentation map:
+
+| Path | Holds |
+| --- | --- |
+| `docs/PROJECT_STATE.md` | current state, next step and these rules (this file) |
+| `docs/ARCHITECTURE.md` | structure, boundaries and the command reference |
+| `docs/CHANGELOG.md` | concise history, newest first |
+| `docs/milestones/` | capability and increment records, and proposals |
+| `docs/workflows/` | records of notable live workflow executions |
+
 Where it goes:
 
 - a milestone or hardening increment gets its own `docs/milestones/` record
   (or `PROPOSAL-*.md` before implementation), written at the time;
+- a notable live workflow (one that motivates an architectural change,
+  validates a milestone, exposes a new failure mode, or produces evidence for
+  future decisions) gets its own `docs/workflows/WORKFLOW-NNN.md` record; see
+  [`workflows/README.md`](workflows/README.md) for the template;
 - `PROJECT_STATE.md` gets a dated update section for anything that changes
   current state or the next step, including notable live workflows such as
-  Workflow 32;
+  Workflow 32, and links to the workflow record rather than repeating it;
 - `CHANGELOG.md` gets a concise entry under *Unreleased*;
 - `README.md` changes only when its own current-state claims become wrong.
 

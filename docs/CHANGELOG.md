@@ -43,6 +43,17 @@ milestone 6 are ordered by increment, not by date.
   limits are unchanged. Workflow 40 is the next live execution target.
 
 
+### Planner hardening budget correction — 2026-09-26
+
+- Pi validation of the first Workflow 41 planner-format patch exposed 9
+  `test_patient_zero_compat` errors: the added instruction pushed supported
+  1-production + 2-test planning prompts over the unchanged 2000-byte ceiling.
+- Keep the same prose-only/no-code planning contract, but compress the wording
+  to `Steps: prose only; no code, fences, literals, or escapes.`
+- No controller limit, repository-context budget, file-count limit or parser
+  behavior changed. Re-run the exact planner regression and the full unittest
+  suite before the next live workflow.
+
 ### Workflow 41 planner-format follow-up — 2026-09-26
 
 - Record [Workflow 41](workflows/WORKFLOW-041.md): selection inference 145 again

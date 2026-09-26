@@ -1,7 +1,7 @@
 # NullCode project state
 
 **Updated:** 2026-09-26, with Milestone 7C-1 merged and live Pi validation
-through Workflow 42, plus narrow repair-routing semantic hardening.
+through Workflow 43, plus deterministic planner-format hardening.
 **Base main before this follow-up:** `7b66edb` (merge of PR #12, Milestone 7C-1).
 **Key implementation commits:** `34fc203` (7C-2 publisher), `53e09bb` / `6c78080`
 (7C-2 hardening/docs), `88c015b` (insufficient-test-count repair), `a48d419`
@@ -17,6 +17,48 @@ state at its own time, and its test counts and "outstanding" items are
 historical unless a later section repeats them. Sections 1–9 retain the
 refactor-era snapshot, refreshed where marked. Sections 10 and 11 are current
 rules.
+
+## Current update: Workflow 43 planner-format enforcement
+
+Workflow 43 was the first live rerun after the Workflow 42 repair-routing
+hardening. Selection inference **152** again chose exactly the granted
+`src/main/java/lab/text/Initials.java` and
+`src/test/java/lab/text/InitialsTest.java` pair.
+
+Planning inference **153** did not obey the existing
+`Steps: prose only; no code, fences, literals, or escapes.` instruction. Its
+`steps` array contained fenced Java, a complete `dotted(String)` method and
+a JUnit method. The generated source included
+`result.append(\'.\');`. After the outer Markdown fence was removed,
+`json.loads` saw `\'`, which is not a legal JSON escape, and the workflow
+failed closed with:
+
+`Invalid model JSON: Invalid \\escape: line 23 column 53 (char 1083)`
+
+No edit call, compilation, tests, repair selection, repair edit, commit or
+publication occurred. Workflow 43 therefore did **not** exercise the Workflow
+42 routing patch.
+
+This follow-up preserves strict JSON parsing and adds a second layer instead of
+trying to repair malformed model output. Ordinary planning and semantic
+re-planning now share a compact instruction: steps are short plain-English
+actions that describe **what** changes, not implementation syntax. After JSON
+parsing, `validate_plan()` deterministically rejects code-shaped steps
+containing fences, backslashes, braces, semicolons, Java declaration/control
+prefixes or JUnit assertion calls. Normal method-level prose such as
+`Add dotted(String) behavior...` remains valid.
+
+The controller limit remains **2000 bytes**. No selected-file authority,
+source-size limit, edit/repair budget, semantic re-plan budget, publication
+rule or strict JSON behavior changes. The pre-patch Pi baseline after PR #14
+was **309 unittest tests, OK**.
+
+See [Workflow 43](workflows/WORKFLOW-043.md).
+
+**Next:** merge and pull this planner-format patch, run the targeted planner
+regressions and full unittest suite on the Pi, restart `nullcode-worker`, then
+rerun the exact same Initials task as a new workflow. The repair-routing patch
+from Workflow 42 is still awaiting live exercise.
 
 ## Current update: Workflow 42 repair-routing semantic follow-up
 

@@ -387,9 +387,9 @@ class InitialsTest {
 }
 """
         related = (
-            "src/main/java/lab/text/Initials.java:\\n"
-            + "\\n".join(
-                line.lstrip(" \\t")
+            "src/main/java/lab/text/Initials.java:\n"
+            + "\n".join(
+                line.lstrip(" \t")
                 for line in production.splitlines()
                 if line.strip()
             )

@@ -207,8 +207,7 @@ def planning_prompt(task, selected, context):
         '"risks":["..."]}. '
         "Every file path must be one of the selected files. "
         "Keep the plan concise and implementation-oriented. "
-        "Steps must be short prose only; do not include code, code fences, "
-        "string literals, or escaped source snippets.\n"
+        "Steps: prose only; no code, fences, literals, or escapes.\n"
         f"Task: {task}\n"
         f"Selected files: {json.dumps(selected)}\n"
         "Repository evidence:\n"

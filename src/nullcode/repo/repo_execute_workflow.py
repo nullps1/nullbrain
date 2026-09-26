@@ -17,6 +17,7 @@ from nullcode.core.java_workflow import (
 from nullcode.gradle.gradle_workflow import inspect as inspect_gradle
 from nullcode.gradle.gradle_workflow import verify as verify_gradle
 from nullcode.repo.repo_plan_workflow import (
+    PLAN_STEPS_GUIDANCE,
     committed_inventory,
     extract_json,
     planning_prompt,
@@ -1124,6 +1125,7 @@ def semantic_replan_planning_prompt(task, selected, behavior, checkout):
         '"steps":["..."],'
         '"risks":["..."]}. '
         "Every file path must be one of the selected files.\n"
+        + PLAN_STEPS_GUIDANCE + "\n"
         "The previous attempt changed nothing the repository did not already "
         "do. Plan THIS behavior instead: " + behavior + "\n"
         + SEMANTIC_REPLAN_ADVISORY + "\n"

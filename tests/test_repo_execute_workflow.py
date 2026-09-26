@@ -316,6 +316,97 @@ class RepoExecuteWorkflowTests(ExecuteWorkflowHarness):
         self.assertEqual(git(self.repo, 'status', '--porcelain'), '')
         self.assertEqual(git(self.repo, 'rev-parse', 'main'), self.spec['base_commit'])
 
+    def test_workflow_40_initials_test_edit_prompt_fits_without_truncation(self):
+        # Workflow 40 hit 2001/2000 bytes while building the InitialsTest edit
+        # prompt. The complete task, plan, edited production reference and
+        # complete test target must fit without changing the 2000-byte limit or
+        # truncating Java evidence.
+        task = (
+            "Add a dotted(String) method to Initials that returns uppercase "
+            "initials separated and terminated by periods, for example "
+            "'hello Java 21' becomes 'H.J.2.'. Preserve the existing null and "
+            "blank behavior and add focused tests in InitialsTest."
+        )
+        plan = {
+            "files": [{
+                "path": "src/test/java/lab/text/InitialsTest.java",
+                "reason": "Add focused tests to validate the new \`dotted(String)\` method.",
+            }],
+            "steps": [
+                "Open \`src/test/java/lab/text/InitialsTest.java\` and add tests "
+                "for the \`dotted(String)\` method."
+            ],
+        }
+        production = """package lab.text;
+
+public final class Initials {
+    private Initials() {}
+
+    public static String of(String text) {
+        if (text == null) throw new IllegalArgumentException("null text");
+        String trimmed = text.trim();
+        if (trimmed.isEmpty()) return "";
+        StringBuilder result = new StringBuilder();
+        for (String word : trimmed.split("\\\\s+")) {
+            result.append(Character.toUpperCase(word.charAt(0)));
+        }
+        return result.toString();
+    }
+
+    public static String dotted(String text) {
+        if (text == null) throw new IllegalArgumentException("null text");
+        String trimmed = text.trim();
+        if (trimmed.isEmpty()) return "";
+        StringBuilder result = new StringBuilder();
+        for (String word : trimmed.split("\\\\s+")) {
+            if (result.length() > 0) result.append(".");
+            result.append(Character.toUpperCase(word.charAt(0)));
+        }
+        return result.toString();
+    }
+}
+"""
+        test_source = """package lab.text;
+
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
+
+class InitialsTest {
+    @Test void buildsInitialsFromWhitespaceSeparatedWords() {
+        assertEquals("HJ2", Initials.of("  hello\\tJava 21  "));
+    }
+
+    @Test void emptyAndBlankProduceEmptyInitials() {
+        assertEquals("", Initials.of(""));
+        assertEquals("", Initials.of(" \\t\\n "));
+    }
+
+    @Test void rejectsNull() {
+        assertThrows(IllegalArgumentException.class, () -> Initials.of(null));
+    }
+}
+"""
+        related = (
+            "src/main/java/lab/text/Initials.java:\\n"
+            + "\\n".join(
+                line.lstrip(" \\t")
+                for line in production.splitlines()
+                if line.strip()
+            )
+        )
+        prompt = edit_prompt(
+            task,
+            plan,
+            "src/test/java/lab/text/InitialsTest.java",
+            test_source,
+            related,
+        )
+        self.assertLessEqual(len(prompt.encode("utf-8")), 2000)
+        self.assertIn(task, prompt)
+        self.assertIn("public static String dotted", prompt)
+        self.assertIn("class InitialsTest", prompt)
+        self.assertIn("Keep every existing @Test method", prompt)
+
     def test_selection_requires_both_a_production_and_a_test_file(self):
         prod_only = '{"files": ["' + PROD_TARGET + '"], "reason": "n/a"}'
         _, result, prompts = self.run_case(

@@ -1,7 +1,7 @@
 # NullCode project state
 
 **Updated:** 2026-09-26, with Milestone 7C-1 merged and live Pi validation
-through Workflow 38, plus a narrow prompt-hardening follow-up.
+through Workflow 39, plus the Patient Zero Initials authority grant for Workflow 40.
 **Base main before this follow-up:** `7b66edb` (merge of PR #12, Milestone 7C-1).
 **Key implementation commits:** `34fc203` (7C-2 publisher), `53e09bb` / `6c78080`
 (7C-2 hardening/docs), `88c015b` (insufficient-test-count repair), `a48d419`
@@ -40,8 +40,13 @@ The follow-up code change only makes the existing duplicate rule explicit in
 the call-1 prompt: a path may appear in one list only, and an edit file must not
 be repeated as context. Deterministic rejection remains unchanged. There is no
 automatic correction, deduplication, retry, scope widening, or limit change.
-Workflow 39 is the next live validation target after this patch is merged,
-tested on the Pi and the worker restarted.
+Workflow 39 then exposed a stale Patient Zero authority manifest: the committed
+`.nullcode.json` omitted `Initials.java` and `InitialsTest.java`. Inference job
+141 improvised an unapproved `src/main/java/lab/TextNormalizer.java` path and
+the exact-path validator failed closed before any edit. The lab manifest was
+then human-directed and committed on `main` as
+`13d0cb2be9e946a9ca2ea81a040d549818fdb0bf`, granting only the two dedicated
+Initials fixture paths.
 
 See [Workflow 36](workflows/WORKFLOW-036.md),
 [Workflow 37](workflows/WORKFLOW-037.md), and
@@ -76,8 +81,10 @@ from 227); **pytest 304 passed plus the same 1 pre-existing collection
 error**. Every mutation in the recorded set was caught. **Live Pi validation is now in progress through Workflow 38; a successful
 proposal/review/grant/execute chain remains outstanding.** See [7C-1](milestones/MILESTONE-7C-1.md).
 
-**Next:** merge and Pi-test the duplicate-path prompt hardening, run Workflow 39
-with the same Initials task, then continue the human review/grant/execute path.
+**Next:** pull Java-lab `main` at
+`13d0cb2be9e946a9ca2ea81a040d549818fdb0bf`, verify the lab, then run Workflow
+40 with the same Initials task against that exact pinned base. Record the full
+execution result before calling 7C-1 live validation complete.
 The live production-domain 7B.2 route also remains outstanding. After that comes the planned autonomy step,
 GitHub issue/task ingestion (§9).
 

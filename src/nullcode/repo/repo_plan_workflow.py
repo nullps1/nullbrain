@@ -18,7 +18,7 @@ PLAN_STEPS_GUIDANCE = (
     "No code, fences, source snippets, literals, or backslashes."
 )
 
-_PLAN_STEP_FORBIDDEN_TOKENS = ("\`\`\`", "\\", "{", "}", ";")
+_PLAN_STEP_FORBIDDEN_TOKENS = ("```", "\\", "{", "}", ";")
 _PLAN_STEP_SOURCE_PREFIXES = (
     "@test",
     "public ",

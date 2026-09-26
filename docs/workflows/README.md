@@ -50,6 +50,7 @@ Workflow records follow the documentation-trail convention in
 | [36](WORKFLOW-036.md) | first live 7C-1 submission exposed a stale deployed worker and legacy fallthrough |
 | [37](WORKFLOW-037.md) | live 7C-1 selection rejected an oversized natural test file at the 900-byte gate |
 | [38](WORKFLOW-038.md) | correct 1+1 edit pair selected; duplicate context nomination failed closed and motivated prompt hardening |
+| [39](WORKFLOW-039.md) | stale Patient Zero authority grant omitted Initials fixtures; hallucinated unapproved path failed closed |
 
 File names are zero-padded to three digits (`WORKFLOW-025.md`) so they sort
 correctly; prose uses the plain number ("Workflow 25").

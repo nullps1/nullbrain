@@ -4,7 +4,13 @@ import uuid
 
 from nullcode.core.java_workflow import Store
 from nullcode.fixtures.create_gradle_fixture import create
-from nullcode.repo.repo_plan_workflow import prepare_spec, run_job
+from nullcode.repo.repo_plan_workflow import (
+    extract_json,
+    planning_prompt,
+    prepare_spec,
+    run_job,
+    validate_plan,
+)
 from nullcode.repo.repo_workflow import git
 
 TASK = 'Implement Slugs.slugify while keeping TextStats passing.'
@@ -47,15 +53,63 @@ class RepoPlanWorkflowTests(unittest.TestCase):
         return job_id, self.store.show(job_id), prompts
 
     def test_planning_prompt_forbids_code_in_steps(self):
-        from nullcode.repo.repo_plan_workflow import planning_prompt
         prompt = planning_prompt(
             TASK,
             ["src/main/java/lab/Slugs.java"],
             "FILE: src/main/java/lab/Slugs.java\nclass Slugs {}",
         )
-        self.assertIn("Steps: prose only", prompt)
-        self.assertIn("no code, fences, literals, or escapes", prompt)
+        self.assertIn("Steps: short plain-English actions", prompt)
+        self.assertIn("say what changes, not how", prompt)
+        self.assertIn("No code, fences, source snippets, literals, or backslashes", prompt)
+        self.assertNotIn("implementation-oriented", prompt)
         self.assertLessEqual(len(prompt.encode("utf-8")), 2000)
+
+    def test_validate_plan_rejects_source_like_steps(self):
+        selected = [
+            "src/main/java/lab/Slugs.java",
+            "src/test/java/lab/SlugsTest.java",
+        ]
+        base = {
+            "summary": "Update slug behavior and tests.",
+            "files": [
+                {"path": selected[0], "reason": "Update production behavior."},
+                {"path": selected[1], "reason": "Add focused coverage."},
+            ],
+            "risks": [],
+        }
+        bad_steps = [
+            "```java",
+            "public static String dotted(String text) {",
+            "result.append('.');",
+            r"split(\\s+)",
+            "@Test",
+            'assertEquals("H.J.2.", actual)',
+        ]
+        for step in bad_steps:
+            with self.subTest(step=step):
+                data = dict(base)
+                data["steps"] = [step]
+                with self.assertRaisesRegex(ValueError, "plain-English actions"):
+                    validate_plan(data, selected)
+
+    def test_validate_plan_accepts_plain_english_method_level_steps(self):
+        selected = [
+            "src/main/java/lab/Slugs.java",
+            "src/test/java/lab/SlugsTest.java",
+        ]
+        data = {
+            "summary": "Update slug behavior and tests.",
+            "files": [
+                {"path": selected[0], "reason": "Update production behavior."},
+                {"path": selected[1], "reason": "Add focused coverage."},
+            ],
+            "steps": [
+                "Add dotted(String) behavior to Slugs.java.",
+                "Extend SlugsTest.java with terminal-period coverage.",
+            ],
+            "risks": [],
+        }
+        self.assertIs(validate_plan(data, selected), data)
 
     def test_task_byte_limit_enforced_before_any_job_is_submitted(self):
         with self.assertRaisesRegex(ValueError, 'planning limit'):

@@ -538,6 +538,9 @@ class SemanticReplanTests(DeltaHarness):
         for prompt in (diagnosis, planning):
             self.assertLessEqual(len(prompt.encode()), 2000)
         self.assertIn('Collapse separator runs', planning)
+        self.assertIn('Steps: short plain-English actions', planning)
+        self.assertIn('say what changes, not how', planning)
+        self.assertIn('No code, fences, source snippets, literals, or backslashes', planning)
         # An empty behavior is a construction error, not a silent prompt.
         with self.assertRaises(ValueError):
             semantic_replan_planning_prompt(workflow.TASK, [PROD, TEST], '  ', self.repo)

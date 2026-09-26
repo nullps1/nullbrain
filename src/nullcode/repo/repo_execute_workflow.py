@@ -259,7 +259,7 @@ def edit_prompt(task, plan, target, source, related=""):
     name = pathlib.PurePosixPath(target).name
     prompt = (
         f"Return ONLY complete {name}, no fences/prose or other files. "
-        "Follow TASK; preserve existing behavior/API except requested additions.\n"
+        "Follow TASK; preserve behavior/API except requested additions.\n"
         + (PRESERVE_TESTS if target.startswith("src/test/java/") else "")
         + f"TASK:\n{task}\nPLAN:\n{target_plan(plan, target)}\n"
         + f"REFERENCE ONLY:\n{related}\n"

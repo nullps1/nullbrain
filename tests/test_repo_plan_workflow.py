@@ -46,6 +46,17 @@ class RepoPlanWorkflowTests(unittest.TestCase):
         run_job(self.store, self.store.claim(), generate, self.root / 'jobs')
         return job_id, self.store.show(job_id), prompts
 
+    def test_planning_prompt_forbids_code_in_steps(self):
+        from nullcode.repo.repo_plan_workflow import planning_prompt
+        prompt = planning_prompt(
+            TASK,
+            ["src/main/java/lab/Slugs.java"],
+            "FILE: src/main/java/lab/Slugs.java\nclass Slugs {}",
+        )
+        self.assertIn("Steps must be short prose only", prompt)
+        self.assertIn("do not include code, code fences", prompt)
+        self.assertLessEqual(len(prompt.encode("utf-8")), 2000)
+
     def test_task_byte_limit_enforced_before_any_job_is_submitted(self):
         with self.assertRaisesRegex(ValueError, 'planning limit'):
             prepare_spec(self.repo, 'main', 'x' * 501)

@@ -228,7 +228,7 @@ def planning_prompt(task, selected, context):
         "Every file path must be selected. "
         "Keep the plan concise. "
         + PLAN_STEPS_GUIDANCE + "\n"
-        f"Task: {task}\n"
+        + f"Task: {task}\n"
         f"Selected files: {json.dumps(selected)}\n"
         "Repository evidence:\n"
         f"{context}"
@@ -259,7 +259,7 @@ def validate_plan(data, selected):
         raise ValueError("Plan requires relevant files")
 
     if not isinstance(steps, list) or not steps:
-        raise ValueError("Plan requires implementation steps")
+        raise ValueError("Plan requires steps")
 
     if not isinstance(risks, list):
         raise ValueError("Plan risks must be a list")

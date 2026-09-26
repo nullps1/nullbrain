@@ -198,8 +198,7 @@ def read_context(checkout, selected):
 
 def planning_prompt(task, selected, context):
     prompt = (
-        "You are planning a small Java repository change. Do not write code. "
-        "Use only the supplied repository evidence. "
+        "Plan this small Java change. Use only supplied evidence. "
         "Return JSON only with this shape: "
         '{"summary":"...",'
         '"files":[{"path":"...","reason":"..."}],'

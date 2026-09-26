@@ -51,6 +51,7 @@ Workflow records follow the documentation-trail convention in
 | [37](WORKFLOW-037.md) | live 7C-1 selection rejected an oversized natural test file at the 900-byte gate |
 | [38](WORKFLOW-038.md) | correct 1+1 edit pair selected; duplicate context nomination failed closed and motivated prompt hardening |
 | [39](WORKFLOW-039.md) | stale Patient Zero authority grant omitted Initials fixtures; hallucinated unapproved path failed closed |
+| [40](WORKFLOW-040.md) | correct Initials selection and plan; test-edit prompt hit 2001/2000-byte fail-closed boundary |
 
 File names are zero-padded to three digits (`WORKFLOW-025.md`) so they sort
 correctly; prose uses the plain number ("Workflow 25").

@@ -53,6 +53,8 @@ Workflow records follow the documentation-trail convention in
 | [39](WORKFLOW-039.md) | stale Patient Zero authority grant omitted Initials fixtures; hallucinated unapproved path failed closed |
 | [40](WORKFLOW-040.md) | correct Initials selection and plan; test-edit prompt hit 2001/2000-byte fail-closed boundary |
 | [41](WORKFLOW-041.md) | correct Initials selection; planner embedded Java in steps and malformed JSON failed closed |
+| [42](WORKFLOW-042.md) | candidate test caught missing terminal period; semantically wrong typed test route then failed closed at 2307/2000 bytes |
+| [43](WORKFLOW-043.md) | repeated planner source embedding produced illegal JSON escape; motivates deterministic plan-step format gate |
 
 File names are zero-padded to three digits (`WORKFLOW-025.md`) so they sort
 correctly; prose uses the plain number ("Workflow 25").

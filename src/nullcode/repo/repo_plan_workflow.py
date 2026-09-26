@@ -13,6 +13,27 @@ MAX_SELECTED_FILES = 3
 MAX_FILE_BYTES = 550
 MAX_TASK_BYTES = 500
 
+PLAN_STEPS_GUIDANCE = (
+    "Steps: short plain-English actions; say what changes, not how. "
+    "No code, fences, source snippets, literals, or backslashes."
+)
+
+_PLAN_STEP_FORBIDDEN_TOKENS = ("```", "\\", "{", "}", ";")
+_PLAN_STEP_SOURCE_PREFIXES = (
+    "@test",
+    "public ",
+    "private ",
+    "protected ",
+    "class ",
+    "interface ",
+    "record ",
+    "enum ",
+    "if (",
+    "for (",
+    "while (",
+)
+_PLAN_STEP_SOURCE_MARKERS = ("assertequals(", "assertthrows(")
+
 ALLOWED_SUFFIXES = {
     ".java",
     ".gradle",
@@ -198,16 +219,16 @@ def read_context(checkout, selected):
 
 def planning_prompt(task, selected, context):
     prompt = (
-        "Plan this small Java change. Use only supplied evidence. "
-        "Return JSON only with this shape: "
+        "Plan this Java change from supplied evidence only. "
+        "Return JSON only: "
         '{"summary":"...",'
         '"files":[{"path":"...","reason":"..."}],'
         '"steps":["..."],'
         '"risks":["..."]}. '
-        "Every file path must be one of the selected files. "
-        "Keep the plan concise and implementation-oriented. "
-        "Steps: prose only; no code, fences, literals, or escapes.\n"
-        f"Task: {task}\n"
+        "Every file path must be selected. "
+        "Keep the plan concise. "
+        + PLAN_STEPS_GUIDANCE + "\n"
+        + f"Task: {task}\n"
         f"Selected files: {json.dumps(selected)}\n"
         "Repository evidence:\n"
         f"{context}"
@@ -238,7 +259,7 @@ def validate_plan(data, selected):
         raise ValueError("Plan requires relevant files")
 
     if not isinstance(steps, list) or not steps:
-        raise ValueError("Plan requires implementation steps")
+        raise ValueError("Plan requires steps")
 
     if not isinstance(risks, list):
         raise ValueError("Plan risks must be a list")
@@ -258,6 +279,20 @@ def validate_plan(data, selected):
 
     if not all(isinstance(step, str) and step.strip() for step in steps):
         raise ValueError("Plan steps must be non-empty strings")
+
+    for step in steps:
+        rendered = step.strip()
+        lowered = rendered.lower()
+
+        if (
+            any(token in rendered for token in _PLAN_STEP_FORBIDDEN_TOKENS)
+            or lowered.startswith(_PLAN_STEP_SOURCE_PREFIXES)
+            or any(marker in lowered for marker in _PLAN_STEP_SOURCE_MARKERS)
+        ):
+            raise ValueError(
+                "Plan steps must be plain-English actions without source code "
+                "or escapes"
+            )
 
     if not all(isinstance(risk, str) for risk in risks):
         raise ValueError("Plan risks must be strings")

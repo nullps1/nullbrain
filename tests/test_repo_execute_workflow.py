@@ -316,6 +316,27 @@ class RepoExecuteWorkflowTests(ExecuteWorkflowHarness):
         self.assertEqual(git(self.repo, 'status', '--porcelain'), '')
         self.assertEqual(git(self.repo, 'rev-parse', 'main'), self.spec['base_commit'])
 
+    def test_workflow_43_invalid_escape_fails_during_planning_before_edits(self):
+        bad_plan = (
+            '{"summary":"Embed implementation source.",'
+            '"files":[{"path":"' + PROD_TARGET + '","reason":"production"},'
+            '{"path":"' + TEST_TARGET + '","reason":"tests"}],'
+            '"steps":["result.append(\\\'.\\\');"],"risks":[]}'
+        )
+        job_id, result, prompts = self.run_case(
+            answers=[SELECTION, bad_plan],
+            verify_results=[],
+        )
+        self.assertEqual(result['status'], 'failed')
+        self.assertIn('Invalid model JSON', result['error'])
+        self.assertIn('Invalid \\escape', result['error'])
+        self.assertEqual(len(prompts), 2)
+
+        workdir = self.root / 'jobs' / f'workflow-{job_id}'
+        self.assertFalse((workdir / 'plan.json').exists())
+        self.assertFalse((workdir / 'attempt-3').exists())
+        self.assertEqual(git(self.repo, 'status', '--porcelain'), '')
+
     def test_workflow_40_initials_test_edit_prompt_fits_without_truncation(self):
         # Workflow 40 hit 2001/2000 bytes while building the InitialsTest edit
         # prompt. The complete task, plan, edited production reference and

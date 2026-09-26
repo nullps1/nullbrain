@@ -1126,7 +1126,7 @@ def semantic_replan_planning_prompt(task, selected, behavior, checkout):
         '"risks":["..."]}. '
         "Every file path must be one of the selected files.\n"
         + PLAN_STEPS_GUIDANCE + "\n"
-        "The previous attempt changed nothing the repository did not already "
+        + "The previous attempt changed nothing the repository did not already "
         "do. Plan THIS behavior instead: " + behavior + "\n"
         + SEMANTIC_REPLAN_ADVISORY + "\n"
         f"Task: {task}\n"

@@ -28,8 +28,9 @@ _PLAN_STEP_SOURCE_PREFIXES = (
     "interface ",
     "record ",
     "enum ",
-    "return ",
-    "throw ",
+    "if (",
+    "for (",
+    "while (",
 )
 _PLAN_STEP_SOURCE_MARKERS = ("assertequals(", "assertthrows(")
 

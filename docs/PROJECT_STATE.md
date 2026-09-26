@@ -1,7 +1,7 @@
 # NullCode project state
 
 **Updated:** 2026-09-26, with Milestone 7C-1 merged and live Pi validation
-through Workflow 40, plus the narrow edit-prompt budget patch for the next live rerun.
+through Workflow 41, plus narrow planner-format hardening for the next live rerun.
 **Base main before this follow-up:** `7b66edb` (merge of PR #12, Milestone 7C-1).
 **Key implementation commits:** `34fc203` (7C-2 publisher), `53e09bb` / `6c78080`
 (7C-2 hardening/docs), `88c015b` (insufficient-test-count repair), `a48d419`
@@ -81,14 +81,7 @@ from 227); **pytest 304 passed plus the same 1 pre-existing collection
 error**. Every mutation in the recorded set was caught. **Live Pi validation is now in progress through Workflow 38; a successful
 proposal/review/grant/execute chain remains outstanding.** See [7C-1](milestones/MILESTONE-7C-1.md).
 
-**Next:** pull current Nullbrain `main`, run the Python suite on the Pi, restart
-the worker, and rerun the same Initials task as Workflow 41 against Java-lab
-base `d2a356a59cfb339cf935ba1dc2009e2b85ba267b` unless the lab base changes.
-Workflow 40 already confirmed correct selection and planning; the remaining live
-question is whether the edit/verification path now proceeds past the unchanged
-2000-byte prompt boundary.
-The live production-domain 7B.2 route also remains outstanding. After that comes the planned autonomy step,
-GitHub issue/task ingestion (§9).
+**Next:** pull current Nullbrain `main`, run the planner regression and broader Python suite on the Pi, restart the worker, then rerun the same Initials task as Workflow 42 against Java-lab base `d2a356a59cfb339cf935ba1dc2009e2b85ba267b` unless the lab base changes.
 
 ## Earlier update: workflow records and Workflow 33
 

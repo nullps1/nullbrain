@@ -1,5 +1,29 @@
 # Changelog
 
+### Workflow 43 planner-format enforcement follow-up — 2026-09-26
+
+- Record [Workflow 43](workflows/WORKFLOW-043.md): selection inference 152 again
+  chose exactly the granted `Initials.java` / `InitialsTest.java` pair, but
+  planning inference 153 ignored the existing prose-only instruction and
+  embedded a fenced Java implementation and test body inside `steps`.
+- The embedded character literal produced the illegal JSON escape `\'`;
+  strict JSON parsing failed closed with
+  `Invalid model JSON: Invalid \\escape: line 23 column 53 (char 1083)`.
+  Editing, verification and repair routing never ran.
+- Treat Workflow 43 as a recurrence of Workflow 41 and evidence that prompt-only
+  planner guidance is insufficient. Keep `extract_json()` strict.
+- Replace the conflicting "implementation-oriented" planner wording with a
+  compact "what changes, not how" contract and share that guidance with the
+  semantic re-plan planner.
+- Add deterministic validation for parseable plans: `steps` reject code
+  fences, backslashes, braces, semicolons and source-shaped Java/test lines.
+  Method-level plain-English actions remain valid.
+- Add an exact Workflow 43 invalid-escape regression plus positive and negative
+  step-format coverage. The 2000-byte controller limit, selected-file authority,
+  planning schema, edit/repair budgets and semantic re-plan budget are unchanged.
+- Pre-patch Pi baseline after PR #14: `python -m unittest discover -s tests`
+  ran **309 tests, OK**. This follow-up still requires Pi validation after merge.
+
 ### Workflow 42 repair-routing semantic follow-up — 2026-09-26
 
 - Record [Workflow 42](workflows/WORKFLOW-042.md): selection 147 and planning 148

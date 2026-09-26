@@ -1,7 +1,7 @@
 # NullCode project state
 
 **Updated:** 2026-09-26, with Milestone 7C-1 merged and live Pi validation
-through Workflow 39, plus the Patient Zero Initials authority grant for Workflow 40.
+through Workflow 40, plus the narrow edit-prompt budget patch for the next live rerun.
 **Base main before this follow-up:** `7b66edb` (merge of PR #12, Milestone 7C-1).
 **Key implementation commits:** `34fc203` (7C-2 publisher), `53e09bb` / `6c78080`
 (7C-2 hardening/docs), `88c015b` (insufficient-test-count repair), `a48d419`
@@ -81,10 +81,12 @@ from 227); **pytest 304 passed plus the same 1 pre-existing collection
 error**. Every mutation in the recorded set was caught. **Live Pi validation is now in progress through Workflow 38; a successful
 proposal/review/grant/execute chain remains outstanding.** See [7C-1](milestones/MILESTONE-7C-1.md).
 
-**Next:** pull Java-lab `main` at
-`13d0cb2be9e946a9ca2ea81a040d549818fdb0bf`, verify the lab, then run Workflow
-40 with the same Initials task against that exact pinned base. Record the full
-execution result before calling 7C-1 live validation complete.
+**Next:** pull current Nullbrain `main`, run the Python suite on the Pi, restart
+the worker, and rerun the same Initials task as Workflow 41 against Java-lab
+base `d2a356a59cfb339cf935ba1dc2009e2b85ba267b` unless the lab base changes.
+Workflow 40 already confirmed correct selection and planning; the remaining live
+question is whether the edit/verification path now proceeds past the unchanged
+2000-byte prompt boundary.
 The live production-domain 7B.2 route also remains outstanding. After that comes the planned autonomy step,
 GitHub issue/task ingestion (§9).
 

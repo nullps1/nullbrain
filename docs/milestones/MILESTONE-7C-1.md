@@ -499,7 +499,7 @@ Commits on branch `claude/milestone-7c1-review-he62e8`, based on `main` at
   refusal and tests;
 - the documentation commit that follows them.
 
-## 16. Live Pi validation progress — Workflows 36–38
+## 16. Live Pi validation progress — Workflows 36–39
 
 Live validation began on 2026-09-26 after PR #12 merged.
 
@@ -524,6 +524,22 @@ Live validation began on 2026-09-26 after PR #12 merged.
   `Scope selection names src/main/java/lab/text/Initials.java more than once
   (production_files, context_files)`. The selection prompt was 1846 bytes and
   the raw answer 302 bytes. No call 2, grant, execution or publication occurred.
+- **Workflow 39** then attempted `repo-execute-v1` against the same base
+  `feb39e83c710a1b4c9c07a3a74bf4c260104b022` (inference job 141). The committed
+  Patient Zero `.nullcode.json` still omitted the dedicated
+  `Initials.java` / `InitialsTest.java` pair, so the execution selector could
+  not legally choose the files named by the task. The model instead returned
+  `src/main/java/lab/TextNormalizer.java` plus
+  `src/test/java/lab/format/CaseConverterTest.java`; the production path was
+  not an exact approved path, and Nullbrain failed closed with
+  `Model selected unapproved file: src/main/java/lab/TextNormalizer.java`.
+  No edit, verification, commit or publication occurred.
+- The human-directed remediation committed the missing Patient Zero authority
+  grant on Java-lab `main` as
+  `13d0cb2be9e946a9ca2ea81a040d549818fdb0bf`, adding
+  `src/main/java/lab/text/Initials.java` to `editable_files` and
+  `src/test/java/lab/text/InitialsTest.java` to `editable_test_files`.
+  Nullbrain execution/validator code was unchanged.
 
 Workflow 38 exposed a prompt/validator contract gap rather than an authority
 failure: duplicate paths were already rejected deterministically, but call 1 did
@@ -534,7 +550,8 @@ or change the 900-byte, 2000-byte, 3-file, one-context, or 8 + 8 limits.
 
 See [Workflow 36](../workflows/WORKFLOW-036.md),
 [Workflow 37](../workflows/WORKFLOW-037.md), and
-[Workflow 38](../workflows/WORKFLOW-038.md).
+[Workflow 38](../workflows/WORKFLOW-038.md), and
+[Workflow 39](../workflows/WORKFLOW-039.md).
 
 ## 17. Live validation still to do on the Pi
 
@@ -545,6 +562,7 @@ See [Workflow 36](../workflows/WORKFLOW-036.md),
    exact rejection, and the prompt sizes.
 3. Run `repo_scope_review <id> --scope-reviewed` and confirm that the lab
    checkout is untouched.
-4. Commit the grant by hand, then run `submit-execute` against it and record
-   the outcome, whatever it is.
+4. The Initials grant is now committed on Patient Zero at
+   `13d0cb2be9e946a9ca2ea81a040d549818fdb0bf`. Run `submit-execute` against
+   that pinned base as Workflow 40 and record the outcome, whatever it is.
 5. Record everything in a workflow record and in `PROJECT_STATE.md`.

@@ -770,8 +770,46 @@ class RepairSelectionPromptTests(unittest.TestCase):
         self.assertIn('"reason":', prompt)
         self.assertIn('Production files: ["' + TEXT_STATS + '"]', prompt)
         self.assertIn('Test files: ["' + TEXT_STATS_TEST + '"]', prompt)
-        self.assertIn('a JUnit expected value may itself be wrong', prompt)
+        self.assertIn('Use TASK as source of truth', prompt)
+        self.assertIn('if expected matches TASK and actual does not', prompt)
+        self.assertIn('fault_domain="production"', prompt)
+        self.assertIn('if actual matches TASK and expected does not', prompt)
+        self.assertIn('fault_domain="test"', prompt)
+        self.assertIn('A failing assertion alone does not make the test wrong', prompt)
+        self.assertIn('TASK explicitly states or exemplifies EXPECTED', prompt)
         self.assertIn('strict > N', prompt)
+
+    def test_workflow_42_contract_precedence_is_explicit(self):
+        task = (
+            "Add a dotted(String) method to Initials that returns uppercase "
+            "initials separated and terminated by periods, for example "
+            "'hello Java 21' becomes 'H.J.2.'."
+        )
+        diagnostic = (
+            "JUnit: buildsDottedInitialsFromWhitespaceSeparatedWords(): "
+            "expected: <H.J.2.> but was: <H.J.2>"
+        )
+        prompt = self.build(
+            [TEXT_STATS, TEXT_STATS_TEST],
+            task=task,
+            diagnostic=diagnostic,
+            summary="Add dotted initials with a terminal period.",
+        )
+        self.assertIn("terminated by periods", prompt)
+        self.assertIn("expected: <H.J.2.> but was: <H.J.2>", prompt)
+        self.assertIn("expected matches TASK and actual does not", prompt)
+        self.assertLessEqual(len(prompt.encode()), 2000)
+
+    def test_inverse_contract_case_still_names_test_domain(self):
+        prompt = self.build(
+            [TEXT_STATS, TEXT_STATS_TEST],
+            task="Return H.J.2 without a trailing period.",
+            diagnostic="JUnit: expected: <H.J.2.> but was: <H.J.2>",
+            summary="Preserve the undotted terminal form.",
+        )
+        self.assertIn("actual matches TASK and expected does not", prompt)
+        self.assertIn('fault_domain="test"', prompt)
+        self.assertLessEqual(len(prompt.encode()), 2000)
 
     def test_prompt_is_advisory_the_validator_rejects(self):
         """The prompt tells the model to list the file under its domain. That

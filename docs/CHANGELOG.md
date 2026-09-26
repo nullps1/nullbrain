@@ -1,5 +1,28 @@
 # Changelog
 
+### Workflow 42 repair-routing semantic follow-up — 2026-09-26
+
+- Record [Workflow 42](workflows/WORKFLOW-042.md): selection 147 and planning 148
+  chose the granted Initials production/test pair; edit jobs 149/150 compiled,
+  then verification ran 52 tests with one failure: expected `H.J.2.` but got
+  `H.J.2`.
+- The generated test matched the task's explicit example and terminal-period
+  contract. Repair routing job 151 nevertheless selected `fault_domain: test`
+  and `InitialsTest.java`, a consistent-but-semantically-wrong typed route.
+- The accepted wrong route then hit the unchanged fail-closed repair-context
+  ceiling at 2307/2000 bytes before any repair edit was made. Do not raise or
+  bypass that limit in this patch.
+- Harden only the advisory repair-selection prompt: TASK is the source of truth;
+  compare assertion EXPECTED and ACTUAL against TASK, prefer production when
+  expected matches the task and actual does not, and prefer test when the
+  inverse is true. A failing assertion alone is not evidence that the test is
+  wrong.
+- Add paired regression coverage for the Workflow 42 contract-precedence case
+  and its inverse. Deterministic typed-domain/file validation, reason handling,
+  repair budgets, semantic re-plan budget, source limits and the 2000-byte
+  controller limit remain unchanged.
+
+
 Concise project history. Detailed per-increment write-ups live in
 [`milestones/`](milestones/); this file is the index, not a replacement.
 

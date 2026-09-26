@@ -1,7 +1,7 @@
 # NullCode project state
 
 **Updated:** 2026-09-26, with Milestone 7C-1 merged and live Pi validation
-through Workflow 41, plus narrow planner-format hardening for the next live rerun.
+through Workflow 42, plus narrow repair-routing semantic hardening.
 **Base main before this follow-up:** `7b66edb` (merge of PR #12, Milestone 7C-1).
 **Key implementation commits:** `34fc203` (7C-2 publisher), `53e09bb` / `6c78080`
 (7C-2 hardening/docs), `88c015b` (insufficient-test-count repair), `a48d419`
@@ -17,6 +17,39 @@ state at its own time, and its test counts and "outstanding" items are
 historical unless a later section repeats them. Sections 1–9 retain the
 refactor-era snapshot, refreshed where marked. Sections 10 and 11 are current
 rules.
+
+## Current update: Workflow 42 repair-routing semantic follow-up
+
+Workflow 42 reached candidate verification on the dedicated Initials fixture.
+Selection inference 147 and planning inference 148 chose the intended production
+and test files; edit inference jobs 149 and 150 produced compiling candidates.
+Verification executed 52 tests and found one failure: the task explicitly
+required dotted initials to be separated **and terminated** by periods, with
+`H.J.2.` as its example, while generated production returned `H.J.2`.
+
+The generated test therefore matched the task contract. Repair routing inference
+151 still returned a typed, file-consistent but semantically wrong `test`
+route to `InitialsTest.java`. That exposes the documented 7B.2 honest limit:
+the deterministic validator proves that domain and file agree, not that the
+model's diagnosis is correct. Before a repair edit could run, the complete
+wrong-target repair context measured 2307/2000 bytes and failed closed without
+truncation.
+
+This follow-up does **not** change deterministic validation or any budget. It
+tightens the advisory routing prompt so TASK is explicitly the source of truth
+and directs the model to compare assertion EXPECTED and ACTUAL against that
+contract. If expected matches TASK and actual does not, production is the
+fault domain; if actual matches TASK and expected does not, test is the fault
+domain. Paired regression coverage records both directions. The 2000-byte
+controller limit remains unchanged.
+
+See [Workflow 42](workflows/WORKFLOW-042.md).
+
+**Next:** after this patch is merged and pulled to the Pi, restart the worker and
+rerun the same Initials task as a new workflow. The desired live evidence is a
+`production` route to `Initials.java`. Only if that correctly routed repair
+context still exceeds 2000 bytes should repair-context compaction become the
+next patch.
 
 ## Current update: 7C-1 live Pi validation — Workflows 36–38
 

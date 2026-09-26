@@ -784,11 +784,14 @@ def repair_selection_prompt(task, plan, candidates, diagnostic, production, test
     domains = repair_route_domains(candidates, production, tests)
     prompt = (
         "A Java change failed verification. Pick ONE listed file to repair; "
-        "do not write code. fault_domain is \"production\" if the "
-        "implementation is wrong, \"test\" if a test expectation is wrong; "
-        "file must be listed under that domain. Reason literally from the "
-        "task; a JUnit expected value may itself be wrong. For 'longer than "
-        "N', use strict > N. Return JSON only: "
+        "do not write code. Use TASK as source of truth. Compare assertion "
+        "EXPECTED and ACTUAL with TASK: if expected matches TASK and actual "
+        "does not, fault_domain=\"production\"; if actual matches TASK and "
+        "expected does not, fault_domain=\"test\". A failing assertion alone "
+        "does not make the test wrong. If TASK explicitly states or exemplifies "
+        "EXPECTED, treat that as strong evidence for production. file must be "
+        "listed under that domain. For 'longer than N', use strict > N. "
+        "Return JSON only: "
         '{"fault_domain":"production|test","file":"listed/path.java",'
         '"reason":"short evidence-based explanation"}.\n'
         f"Task: {task}\n"

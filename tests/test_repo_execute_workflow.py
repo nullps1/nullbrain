@@ -330,11 +330,11 @@ class RepoExecuteWorkflowTests(ExecuteWorkflowHarness):
         plan = {
             "files": [{
                 "path": "src/test/java/lab/text/InitialsTest.java",
-                "reason": "Add focused tests to validate the new \`dotted(String)\` method.",
+                "reason": "Add focused tests to validate the new `dotted(String)` method.",
             }],
             "steps": [
-                "Open \`src/test/java/lab/text/InitialsTest.java\` and add tests "
-                "for the \`dotted(String)\` method."
+                "Open `src/test/java/lab/text/InitialsTest.java` and add tests "
+                "for the `dotted(String)` method."
             ],
         }
         production = """package lab.text;

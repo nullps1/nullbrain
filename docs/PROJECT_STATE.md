@@ -1,9 +1,8 @@
 # NullCode project state
 
-**Updated:** 2026-09-25, with Milestone 7C-1 implemented (canned validation
-only), dedicated workflow records under [`workflows/`](workflows/) and live
-Milestone 7B.2 evidence through Workflow 35.
-**Base main:** `2d6c6c0` (merge of PR #9, Milestone 7B.2).
+**Updated:** 2026-09-26, with Milestone 7C-1 merged and live Pi validation
+through Workflow 38, plus a narrow prompt-hardening follow-up.
+**Base main before this follow-up:** `7b66edb` (merge of PR #12, Milestone 7C-1).
 **Key implementation commits:** `34fc203` (7C-2 publisher), `53e09bb` / `6c78080`
 (7C-2 hardening/docs), `88c015b` (insufficient-test-count repair), `a48d419`
 (behavioral-delta gate), `3c7e724` (7B.1 evidence hardening + semantic
@@ -18,6 +17,35 @@ state at its own time, and its test counts and "outstanding" items are
 historical unless a later section repeats them. Sections 1–9 retain the
 refactor-era snapshot, refreshed where marked. Sections 10 and 11 are current
 rules.
+
+## Current update: 7C-1 live Pi validation — Workflows 36–38
+
+Live Pi validation is in progress. Workflow 36 exposed a deployment-state issue:
+the queued spec correctly contained `profile: repo-scope-v1`, but the worker
+process had been started before the merged code was loaded and fell through to
+the legacy Numbers workflow. Restarting `nullcode-worker` restored the explicit
+7C-1 dispatch.
+
+Workflow 37 then exercised real Ollama inference (job 139). The model chose the
+natural `IdentifierFormatter.java` / `IdentifierFormatterTest.java` pair, and
+the deterministic 900-byte gate rejected the 1034-byte test before call 2.
+
+Patient Zero PR #4 added an intentionally ungranted, under-limit
+`Initials.java` / `InitialsTest.java` pair. The Pi verified the lab build
+successfully. Workflow 38 (inference job 140) selected that exact 1+1 edit pair,
+but duplicated `Initials.java` in `context_files`; the existing duplicate
+validator failed closed before call 2. Its call-1 prompt was 1846 bytes.
+
+The follow-up code change only makes the existing duplicate rule explicit in
+the call-1 prompt: a path may appear in one list only, and an edit file must not
+be repeated as context. Deterministic rejection remains unchanged. There is no
+automatic correction, deduplication, retry, scope widening, or limit change.
+Workflow 39 is the next live validation target after this patch is merged,
+tested on the Pi and the worker restarted.
+
+See [Workflow 36](workflows/WORKFLOW-036.md),
+[Workflow 37](workflows/WORKFLOW-037.md), and
+[Workflow 38](workflows/WORKFLOW-038.md).
 
 ## Current update: 7C-1 — model-proposed scope, human-granted scope
 
@@ -45,11 +73,12 @@ import nor read proposal artifacts, and that only a human commit changes what
 
 Validation on Linux with canned inference: **unittest 304 tests, OK** (up
 from 227); **pytest 304 passed plus the same 1 pre-existing collection
-error**. Every mutation in the recorded set was caught. **Live Pi validation
-is outstanding.** See [7C-1](milestones/MILESTONE-7C-1.md).
+error**. Every mutation in the recorded set was caught. **Live Pi validation is now in progress through Workflow 38; a successful
+proposal/review/grant/execute chain remains outstanding.** See [7C-1](milestones/MILESTONE-7C-1.md).
 
-**Next:** live 7C-1 validation on the Pi, and the still-outstanding live
-production-domain 7B.2 route. After that comes the planned autonomy step,
+**Next:** merge and Pi-test the duplicate-path prompt hardening, run Workflow 39
+with the same Initials task, then continue the human review/grant/execute path.
+The live production-domain 7B.2 route also remains outstanding. After that comes the planned autonomy step,
 GitHub issue/task ingestion (§9).
 
 ## Earlier update: workflow records and Workflow 33

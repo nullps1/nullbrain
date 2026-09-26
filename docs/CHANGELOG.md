@@ -9,6 +9,31 @@ milestone 6 are ordered by increment, not by date.
 
 ## Unreleased
 
+### 7C-1 live validation and duplicate-path prompt hardening — 2026-09-26
+
+- Record [Workflow 36](workflows/WORKFLOW-036.md): the first live
+  `repo-scope-v1` submission carried the correct profile but a stale deployed
+  worker fell through to the legacy Numbers workflow. It failed before
+  inference; restarting the worker loaded the merged dispatch code.
+- Record [Workflow 37](workflows/WORKFLOW-037.md): live inference job 139 chose
+  the natural `IdentifierFormatter` production/test pair, and the unchanged
+  900-byte source gate rejected the oversized test before call 2.
+- Patient Zero PR #4 added a dedicated ungranted
+  `Initials.java` / `InitialsTest.java` pair below the 900-byte limit; the Pi
+  verified the updated Gradle project successfully.
+- Record [Workflow 38](workflows/WORKFLOW-038.md): live inference job 140 chose
+  the intended Initials production/test pair but repeated the production file
+  as context. The existing duplicate-path validator failed closed before call 2.
+  The selection prompt was 1846 bytes.
+- Harden only the call-1 instruction with: `A path may appear in only one
+  list; never repeat an edit file as context.` Add a regression assertion that
+  the instruction is present and the prompt remains within 2000 bytes.
+  Deterministic duplicate rejection remains authoritative; there is no
+  deduplication, retry, validator relaxation, authority change or limit change.
+- Workflow 39 is the next live validation target after merge, Pi tests and a
+  worker restart.
+
+
 ### 7C-1 — model-proposed scope, human-granted scope — 2026-09-25
 
 - Add the read-only profile `repo-scope-v1` (`submit-scope`). It makes two

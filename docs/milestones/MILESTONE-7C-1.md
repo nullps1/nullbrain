@@ -499,7 +499,44 @@ Commits on branch `claude/milestone-7c1-review-he62e8`, based on `main` at
   refusal and tests;
 - the documentation commit that follows them.
 
-## 16. Live validation still to do on the Pi
+## 16. Live Pi validation progress — Workflows 36–38
+
+Live validation began on 2026-09-26 after PR #12 merged.
+
+- **Workflow 36** submitted a valid `repo-scope-v1` spec against Patient Zero at
+  `7a95d1437eb2b4b18f1ee4e6f6436fd5ff4c5bae`, but a stale long-running worker
+  process dispatched it through the legacy repository workflow. It failed before
+  inference with `Repository needs src/main/java/Numbers.java and
+  src/test/java/NumbersTest.java`. Restarting the worker loaded the merged
+  dispatch code. No proposal, grant, execution or publication occurred.
+- **Workflow 37** reached live scope inference (job 139). The model selected
+  `IdentifierFormatter.java` and its natural
+  `IdentifierFormatterTest.java`; deterministic validation rejected the test
+  because it exceeds the unchanged 900-byte source limit. There was no call 2
+  and no grant.
+- Patient Zero PR #4 added a dedicated, healthy ungranted fixture pair:
+  `Initials.java` (496 bytes) and `InitialsTest.java` (529 bytes). The Pi
+  verified the updated lab with `gradle clean test --offline` successfully.
+- **Workflow 38** reached live scope inference (job 140) against Patient Zero at
+  `feb39e83c710a1b4c9c07a3a74bf4c260104b022`. It selected the exact intended
+  production/test pair, but also repeated `Initials.java` in
+  `context_files`. The deterministic duplicate-path rule rejected call 1:
+  `Scope selection names src/main/java/lab/text/Initials.java more than once
+  (production_files, context_files)`. The selection prompt was 1846 bytes and
+  the raw answer 302 bytes. No call 2, grant, execution or publication occurred.
+
+Workflow 38 exposed a prompt/validator contract gap rather than an authority
+failure: duplicate paths were already rejected deterministically, but call 1 did
+not explicitly tell the model that a path may appear in only one list. The
+follow-up patch adds only that instruction and a regression assertion. It does
+**not** deduplicate model output, retry inference, alter validators, widen scope,
+or change the 900-byte, 2000-byte, 3-file, one-context, or 8 + 8 limits.
+
+See [Workflow 36](../workflows/WORKFLOW-036.md),
+[Workflow 37](../workflows/WORKFLOW-037.md), and
+[Workflow 38](../workflows/WORKFLOW-038.md).
+
+## 17. Live validation still to do on the Pi
 
 1. Run the suite under `unittest` and `pytest` and record the counts
    separately.

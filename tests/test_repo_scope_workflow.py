@@ -647,6 +647,12 @@ class PromptBudgetTests(ScopeHarness):
         return {"production_files": list(production), "test_files": list(tests),
                 "context_files": list(context)}
 
+    def test_selection_prompt_forbids_cross_class_duplicates(self):
+        prompt = scope.selection_prompt(TASK, committed_inventory(self.repo, "main"))
+        self.assertIn("A path may appear in only one list", prompt)
+        self.assertIn("never repeat an edit file as context", prompt)
+        self.assertLessEqual(len(prompt.encode()), 2000)
+
     def test_selection_prompt_limit_is_exact(self):
         inventory = committed_inventory(self.repo, "main")
         fixed = len(scope.selection_prompt("", inventory).encode())

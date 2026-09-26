@@ -213,8 +213,9 @@ def selection_prompt(task, inventory):
         "files only, name the files the task must CHANGE: production files "
         "under src/main/java/ and test files under src/test/java/, at least one "
         f"of each, at most {MAX_SELECTED_FILES} in total. You may name up to "
-        f"{MAX_CONTEXT_FILES} other listed file to READ for context. Never "
-        "name build files or .nullcode.json to change. Return JSON only: "
+        f"{MAX_CONTEXT_FILES} other listed file to READ for context. "
+        "A path may appear in only one list; never repeat an edit file as context. "
+        "Never name build files or .nullcode.json to change. Return JSON only: "
         '{"production_files":["path"],"test_files":["path"],'
         '"context_files":["path"],"reason":"short reason"}.\n'
         f"Task: {task}\n"

@@ -47,6 +47,9 @@ Workflow records follow the documentation-trail convention in
 | [33](WORKFLOW-033.md) | first live 7B.2 test-domain validation |
 | [34](WORKFLOW-034.md) | second live 7B.2 test-domain route; repair prompt budget failed closed |
 | [35](WORKFLOW-035.md) | ASCII-only follow-up stopped by the added-coverage gate |
+| [36](WORKFLOW-036.md) | first live 7C-1 submission exposed a stale deployed worker and legacy fallthrough |
+| [37](WORKFLOW-037.md) | live 7C-1 selection rejected an oversized natural test file at the 900-byte gate |
+| [38](WORKFLOW-038.md) | correct 1+1 edit pair selected; duplicate context nomination failed closed and motivated prompt hardening |
 
 File names are zero-padded to three digits (`WORKFLOW-025.md`) so they sort
 correctly; prose uses the plain number ("Workflow 25").

@@ -30,8 +30,17 @@ milestone 6 are ordered by increment, not by date.
   the instruction is present and the prompt remains within 2000 bytes.
   Deterministic duplicate rejection remains authoritative; there is no
   deduplication, retry, validator relaxation, authority change or limit change.
-- Workflow 39 is the next live validation target after merge, Pi tests and a
-  worker restart.
+- Record [Workflow 39](workflows/WORKFLOW-039.md): execution inference job 141
+  ran against Patient Zero base
+  `feb39e83c710a1b4c9c07a3a74bf4c260104b022`, whose committed
+  `.nullcode.json` omitted the dedicated Initials production/test fixture.
+  The model returned an unapproved `src/main/java/lab/TextNormalizer.java`
+  path; exact-path authority validation failed closed before any edit.
+- Human-directed remediation updated the Java-lab authority manifest on
+  `main` at `13d0cb2be9e946a9ca2ea81a040d549818fdb0bf`, adding only
+  `src/main/java/lab/text/Initials.java` and
+  `src/test/java/lab/text/InitialsTest.java`. Nullbrain runtime code and
+  limits are unchanged. Workflow 40 is the next live execution target.
 
 
 ### 7C-1 — model-proposed scope, human-granted scope — 2026-09-25

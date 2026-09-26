@@ -43,6 +43,18 @@ milestone 6 are ordered by increment, not by date.
   limits are unchanged. Workflow 40 is the next live execution target.
 
 
+### Workflow 41 planner-format follow-up — 2026-09-26
+
+- Record [Workflow 41](workflows/WORKFLOW-041.md): selection inference 145 again
+  chose exactly the granted Initials production/test pair.
+- Planning inference 146 ignored the existing `Do not write code` instruction,
+  embedded Java and test source in `steps`, and emitted the illegal JSON escape
+  `\'`. Strict JSON parsing failed closed before editing.
+- Keep `extract_json()` strict. Harden the shared planning prompt so `steps`
+  must be short prose only, with no code, code fences, string literals or
+  escaped source snippets. Add a regression assertion for that contract and
+  retain the unchanged 2000-byte planning-prompt limit.
+
 ### Workflow 40 prompt-budget follow-up — 2026-09-26
 
 - Record [Workflow 40](workflows/WORKFLOW-040.md): selection inference 142 and

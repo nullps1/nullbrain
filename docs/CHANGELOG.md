@@ -43,6 +43,17 @@ milestone 6 are ordered by increment, not by date.
   limits are unchanged. Workflow 40 is the next live execution target.
 
 
+### Planner compatibility follow-up — 2026-09-26
+
+- A second Pi validation showed two supported 1-production + 2-test prompt
+  combinations still exceeded the 2000-byte planning ceiling, and the planner
+  regression assertion had not actually been updated in the previous commit.
+- Further compress redundant planner boilerplate while preserving the same
+  selected-path-only and prose-only/no-code contract.
+- Update the regression assertion to the exact compact wording now emitted by
+  `planning_prompt()`.
+- Controller limits and parsing behavior remain unchanged.
+
 ### Planner hardening budget correction — 2026-09-26
 
 - Pi validation of the first Workflow 41 planner-format patch exposed 9

@@ -43,6 +43,22 @@ milestone 6 are ordered by increment, not by date.
   limits are unchanged. Workflow 40 is the next live execution target.
 
 
+### Workflow 40 prompt-budget follow-up — 2026-09-26
+
+- Record [Workflow 40](workflows/WORKFLOW-040.md): selection inference 142 and
+  planning inference 143 both chose exactly the granted Initials production/test
+  pair on Patient Zero base `d2a356a59cfb339cf935ba1dc2009e2b85ba267b`.
+- Edit inference 144 produced a complete `Initials.java` candidate, but the
+  following complete `InitialsTest.java` edit prompt measured 2001/2000 bytes
+  and failed closed before test editing or verification.
+- Keep the 2000-byte limit and all complete Java/task/plan/reference evidence.
+  Shorten only redundant static edit-prompt wording by 9 bytes and add an exact
+  Workflow 40 regression fixture proving the complete prompt fits without
+  truncation.
+- The generated production candidate itself omitted the required terminal
+  period (`H.J.2` vs `H.J.2.`); candidate verification had not yet run, so
+  no conclusion is drawn about repair behavior from Workflow 40.
+
 ### 7C-1 — model-proposed scope, human-granted scope — 2026-09-25
 
 - Add the read-only profile `repo-scope-v1` (`submit-scope`). It makes two

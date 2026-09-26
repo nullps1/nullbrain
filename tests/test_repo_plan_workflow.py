@@ -53,8 +53,8 @@ class RepoPlanWorkflowTests(unittest.TestCase):
             ["src/main/java/lab/Slugs.java"],
             "FILE: src/main/java/lab/Slugs.java\nclass Slugs {}",
         )
-        self.assertIn("Steps must be short prose only", prompt)
-        self.assertIn("do not include code, code fences", prompt)
+        self.assertIn("Steps: concise prose only", prompt)
+        self.assertIn("no code, fences, literals, or escapes", prompt)
         self.assertLessEqual(len(prompt.encode("utf-8")), 2000)
 
     def test_task_byte_limit_enforced_before_any_job_is_submitted(self):

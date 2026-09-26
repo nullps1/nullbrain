@@ -14,6 +14,20 @@ PROFILE = pathlib.Path(__file__).parent / 'gradle_profile'
 IMAGE = 'nullcode-gradle:8.14.3-jdk21'
 
 
+def is_production_java(name):
+    return name.startswith('src/main/java/') and name.endswith('.java')
+
+
+def validate_editable_files(allowed, paths):
+    """The committed editable_files rules. Shared so a scope proposal is judged
+    by exactly the predicate inspect() applies, not a restatement of it."""
+    if not isinstance(allowed, list) or not allowed or len(allowed) > 8 or len(set(allowed)) != len(allowed):
+        raise ValueError('Configure 1 to 8 unique editable Java files')
+    for name in allowed:
+        if name not in paths or not is_production_java(name):
+            raise ValueError('Editable files must be committed Java production sources')
+
+
 def inspect(repo, commit):
     paths = []
     total = 0
@@ -37,12 +51,7 @@ def inspect(repo, commit):
     config = json.loads(git(repo, 'show', commit + ':.nullcode.json'))
     if config.get('profile') != 'gradle-junit-v1':
         raise ValueError('Unsupported project profile')
-    allowed = config.get('editable_files')
-    if not isinstance(allowed, list) or not allowed or len(allowed) > 8 or len(set(allowed)) != len(allowed):
-        raise ValueError('Configure 1 to 8 unique editable Java files')
-    for name in allowed:
-        if name not in paths or not name.startswith('src/main/java/') or not name.endswith('.java'):
-            raise ValueError('Editable files must be committed Java production sources')
+    validate_editable_files(config.get('editable_files'), paths)
     minimum = config.get('minimum_tests')
     if type(minimum) is not int or minimum < 1 or minimum > 1000:
         raise ValueError('minimum_tests must be an integer between 1 and 1000')

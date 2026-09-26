@@ -1,7 +1,8 @@
 # NullCode project state
 
-**Updated:** 2026-09-25, with dedicated workflow records under
-[`workflows/`](workflows/) and live Milestone 7B.2 evidence through Workflow 35.
+**Updated:** 2026-09-25, with Milestone 7C-1 implemented (canned validation
+only), dedicated workflow records under [`workflows/`](workflows/) and live
+Milestone 7B.2 evidence through Workflow 35.
 **Base main:** `2d6c6c0` (merge of PR #9, Milestone 7B.2).
 **Key implementation commits:** `34fc203` (7C-2 publisher), `53e09bb` / `6c78080`
 (7C-2 hardening/docs), `88c015b` (insufficient-test-count repair), `a48d419`
@@ -18,7 +19,40 @@ historical unless a later section repeats them. Sections 1–9 retain the
 refactor-era snapshot, refreshed where marked. Sections 10 and 11 are current
 rules.
 
-## Current update: workflow records and Workflow 33
+## Current update: 7C-1 — model-proposed scope, human-granted scope
+
+A new read-only profile, `repo-scope-v1` (`submit-scope`), asks the model
+which committed files a task would have to change. It makes two calls:
+candidate selection from 7A's committed inventory, then a final proposal over
+complete contents of only the accepted paths. Each reply is validated
+deterministically, and call 2 may only narrow call 1 within each class. A
+context file can never become an edit file. A valid proposal must be exactly
+a selection current `repo-execute-v1` could make once granted: it is checked
+with 7B's own validators (extracted as pure helpers, with behavior unchanged)
+against the configuration the grant would produce, with the 3-file, 900-byte
+and 8 + 8 limits unchanged. At most one context file is allowed; that cap was
+chosen from Patient Zero prompt measurements.
+
+The proposal is an **inert artifact**. `repo_scope_review <id>
+--scope-reviewed` renders the `.nullcode.json` diff that would grant it. The
+flag is a required human attestation of review, not edit authority. The
+review never touches the target repository. **The grant is a human editing
+and committing `.nullcode.json`**; nothing is written, staged, committed,
+executed or published automatically. The publisher refuses the profile
+outright. Tests show that `repo-execute-v1` and the 7C-2 publisher neither
+import nor read proposal artifacts, and that only a human commit changes what
+7B may select.
+
+Validation on Linux with canned inference: **unittest 304 tests, OK** (up
+from 227); **pytest 304 passed plus the same 1 pre-existing collection
+error**. Every mutation in the recorded set was caught. **Live Pi validation
+is outstanding.** See [7C-1](milestones/MILESTONE-7C-1.md).
+
+**Next:** live 7C-1 validation on the Pi, and the still-outstanding live
+production-domain 7B.2 route. After that comes the planned autonomy step,
+GitHub issue/task ingestion (§9).
+
+## Earlier update: workflow records and Workflow 33
 
 **Notable live workflows now get dedicated records** under
 [`workflows/`](workflows/README.md). Milestone documents describe
@@ -321,13 +355,14 @@ The test counts are identical before and after the reorganization.
 src/nullcode/
   core/      java_workflow.py  validate_java.py  review_java.py
   repo/      repo_workflow.py  repo_plan_workflow.py
+             repo_scope_workflow.py  repo_scope_review.py
              repo_execute_workflow.py  accepted_workflow.py
   gradle/    gradle_workflow.py  gradle_profile/
   publish/   publish_workflow.py  check_acceptance.py  prepare_acceptance.py
   fixtures/  create_fixture.py  create_gradle_fixture.py
   acceptance/  contract.json  TextStatsAcceptanceTest.java   (package data)
 rust/        Cargo.toml  src/main.rs  Dockerfile  README.md
-tests/       13 test modules, 227 unittest cases (with 7B.2)
+tests/       15 test modules, 304 unittest cases (with 7C-1)
 scripts/     smoke.py
 ```
 
@@ -387,6 +422,7 @@ and `compose/ollama.compose.yml`, and the controller build context is `rust/`.
 | 7B.1 | Behavioral-delta evidence hardening | [`milestones/MILESTONE-7B-1.md`](milestones/MILESTONE-7B-1.md) |
 | 7B.2 | Typed repair-target routing (live test-domain routing validated by Workflow 33; production-domain routing outstanding) | [`milestones/MILESTONE-7B-2.md`](milestones/MILESTONE-7B-2.md) |
 | 7C-2 | Multi-file draft PR publishing | [`milestones/MILESTONE-7C-2.md`](milestones/MILESTONE-7C-2.md) |
+| 7C-1 | Model-proposed scope, human-granted scope (canned validation; live Pi validation outstanding) | [`milestones/MILESTONE-7C-1.md`](milestones/MILESTONE-7C-1.md) |
 | — | Acceptance-gated production edits (`accepted-java-v1`) | [`milestones/ACCEPTED-JAVA-V1.md`](milestones/ACCEPTED-JAVA-V1.md) |
 | — | `javac`-driven repair rule (`javac-string-array-stream-loop-v1`) | [`milestones/JAVAC-REPAIR-RULE.md`](milestones/JAVAC-REPAIR-RULE.md) |
 
@@ -445,8 +481,13 @@ and `compose/ollama.compose.yml`, and the controller build context is `rust/`.
    contradiction could not be detected at all.)
 13. **The suite is not clean under pytest.** `pytest` reports one collection
    error (an imported production helper named `test_*` is collected as a test);
-   `unittest` runs the same cases cleanly (227 with 7B.2). See the Patient
-   Zero update above.
+   `unittest` runs the same cases cleanly (227 with 7B.2, 304 with 7C-1). See
+   the Patient Zero update above.
+14. **Granted scope only accumulates.** 7C-1 proposals render append-only
+   grants and nothing removes entries; the 8 + 8 ceilings bound growth, and
+   pruning is a human task. Proposals are checked for legality, not
+   correctness; the human review is the control. See
+   [7C-1](milestones/MILESTONE-7C-1.md) §13.
 
 ## 7. Checkpoint snapshots
 
@@ -474,8 +515,8 @@ leave them in place. `checkpoints/README.md` repeats this.
 
 ```sh
 # Python (no install needed)
-PYTHONPATH=src python3 -m unittest discover -s tests   # expect: Ran 227 tests ... OK
-pytest -q                                              # expect: 227 passed, 1 error (known collection
+PYTHONPATH=src python3 -m unittest discover -s tests   # expect: Ran 304 tests ... OK
+pytest -q                                              # expect: 304 passed, 1 error (known collection
                                                        #   error, see §6 item 13) - not a clean run
 
 # Rust controller
@@ -509,11 +550,12 @@ test-domain routing held, and the run failed safely on existing gates. The
 remaining live step is a task whose natural failure is a production bug, to
 exercise `production` routing end to end (milestone record §14 step 3, §15).
 
-**Next autonomy milestone: 7C-1 — model-proposed scope, human-granted
-scope.** The current design lives in
-[`milestones/PROPOSAL-7C-1.md`](milestones/PROPOSAL-7C-1.md) and is still a
-proposal, not implemented behavior. The invariant is unchanged: a model may
-propose a scope, but only a human can grant it by changing committed policy.
+**7C-1 — model-proposed scope, human-granted scope — is implemented** (see
+[`milestones/MILESTONE-7C-1.md`](milestones/MILESTONE-7C-1.md); the design
+record is [`milestones/PROPOSAL-7C-1.md`](milestones/PROPOSAL-7C-1.md)). A model
+may propose a scope; only a human can grant it, by committing
+`.nullcode.json`. Its live Pi validation (milestone record §16) is
+outstanding.
 
 After 7C-1, the next planned autonomy step is **GitHub issue/task ingestion**:
 consume a real issue as task input, run the same bounded planning/execution and
@@ -532,7 +574,8 @@ The short version:
 - Do not increase attempt budgets or let infrastructure errors count as repairs.
 - Do not give the HTTP controller the Docker socket.
 - Do not make publishing automatic, non-draft, or capable of merging.
-- Do not set `--acceptance-reviewed` programmatically.
+- Do not set `--acceptance-reviewed` or `--scope-reviewed` programmatically.
+- Do not let anything but the committed `.nullcode.json` grant edit scope.
 - Do not move runtime/generated state into the package or into Git.
 - Do not hoist `core.java_workflow`'s lazy profile imports to module scope.
 - Develop in small, verified milestones; run the suites before and after.

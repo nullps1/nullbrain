@@ -1,6 +1,15 @@
 # Proposal 7C-1: model-proposed scope, human-granted scope
 
-**Status: proposal only. Nothing described here is implemented.** This document
+> **Annotation (2026-09-25): implemented as [Milestone 7C-1](MILESTONE-7C-1.md).**
+> This document is kept unchanged below as the design record. The open
+> questions it raised are answered in the milestone record (§11), and the
+> places where the implementation deliberately differs from this text are
+> listed there too. In short: no `--write` mode, no scope expiry, proposals
+> persisted as inert workflow artifacts, two model calls with no prompt-limit
+> increase, and adversarial plus mutation coverage.
+
+**Status: proposal only. Nothing described here is implemented.** *(Historical:
+true when written; see the annotation above.)* This document
 exists so the 7C-1 design can be argued about before any code is written. It
 makes no claim of verification, and it is not an approval of the design.
 
@@ -97,6 +106,9 @@ what makes the committed configuration meaningful as evidence later.
   network access.
 
 ## Open questions for the human deciding this
+
+> *Annotation: settled in [MILESTONE-7C-1.md §11](MILESTONE-7C-1.md#11-open-questions-settled).
+> The questions are left as they were asked.*
 
 1. **Is the `--write` staging mode worth it at all?** Printing a diff is
    strictly safer and barely less convenient. Convenience here buys very

@@ -53,6 +53,44 @@ NO_BEHAVIORAL_DELTA_DIAGNOSTIC = (
 )
 
 
+# The committed-scope rules below are shared with repo-scope-v1 (7C-1), which
+# must judge a proposed grant by exactly what this profile would accept.
+
+
+def is_test_java(name):
+    return name.startswith("src/test/java/") and name.endswith(".java")
+
+
+def validate_editable_test_files(tests, paths):
+    if (
+        not isinstance(tests, list)
+        or not tests
+        or len(tests) > 8
+        or len(set(tests)) != len(tests)
+    ):
+        raise ValueError(
+            "Configure 1 to 8 unique editable_test_files for repo-execute-v1"
+        )
+
+    for name in tests:
+        if name not in paths or not is_test_java(name):
+            raise ValueError(
+                "editable_test_files must be committed Java test sources"
+            )
+
+
+def committed_source_bytes(repo, commit, name):
+    return len(git(repo, "show", commit + ":" + name, raw=True).encode())
+
+
+def check_source_limit(repo, commit, names):
+    for name in names:
+        if committed_source_bytes(repo, commit, name) > MAX_SOURCE_BYTES:
+            raise ValueError(
+                f"{name} exceeds the {MAX_SOURCE_BYTES}-byte 7B source limit"
+            )
+
+
 def prepare_spec(repo, base, task):
     repo = pathlib.Path(repo).resolve(strict=True)
 
@@ -71,34 +109,9 @@ def prepare_spec(repo, base, task):
 
     tests = config.get("editable_test_files")
 
-    if (
-        not isinstance(tests, list)
-        or not tests
-        or len(tests) > 8
-        or len(set(tests)) != len(tests)
-    ):
-        raise ValueError(
-            "Configure 1 to 8 unique editable_test_files for repo-execute-v1"
-        )
+    validate_editable_test_files(tests, paths)
 
-    for name in tests:
-        if (
-            name not in paths
-            or not name.startswith("src/test/java/")
-            or not name.endswith(".java")
-        ):
-            raise ValueError(
-                "editable_test_files must be committed Java test sources"
-            )
-
-    approved = config["editable_files"] + tests
-
-    for name in approved:
-        source = git(repo, "show", commit + ":" + name, raw=True)
-        if len(source.encode()) > MAX_SOURCE_BYTES:
-            raise ValueError(
-                f"{name} exceeds the {MAX_SOURCE_BYTES}-byte 7B source limit"
-            )
+    check_source_limit(repo, commit, config["editable_files"] + tests)
 
     return {
         "profile": PROFILE,

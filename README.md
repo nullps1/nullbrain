@@ -21,6 +21,7 @@ general autonomous agent. It can, today:
 - run deterministic review rules and refuse to commit when they find something;
 - commit passing work to an isolated branch in an isolated clone;
 - plan and execute bounded multi-file edits against a Gradle/JUnit project;
+- propose, but never grant, the edit scope for a task; a human grants scope by committing `.nullcode.json`;
 - require candidate tests to distinguish candidate production from the pinned base through a behavioral-delta counterfactual;
 - allow exactly one separately bounded semantic re-plan when the first candidate demonstrates no behavioral delta;
 - verify a model's work against committed, human-reviewed acceptance tests;
@@ -38,11 +39,11 @@ state and the next intended milestone.
 | --- | --- | --- |
 | Inference controller | `rust/` | Rust/Axum HTTP API on `127.0.0.1:8080`, SQLite-backed job queue, one Ollama worker. |
 | Workflow engine | `src/nullcode/core/` | Workflow store, the single worker loop, Java verification, review rules. |
-| Repository profiles | `src/nullcode/repo/` | Restricted, plan, execute and acceptance-gated repository workflows. |
+| Repository profiles | `src/nullcode/repo/` | Restricted, plan, scope-proposal, execute and acceptance-gated repository workflows. |
 | Gradle profile | `src/nullcode/gradle/` | Offline Gradle/JUnit verification and the approved build templates. |
 | Publishing | `src/nullcode/publish/` | Acceptance preparation/checking and explicit GitHub draft-PR delivery. |
 | Fixtures | `src/nullcode/fixtures/` | Generators for the local Git repositories the smoke tests use. |
-| Tests | `tests/` | 227 unittest cases: real Git and SQLite, simulated inference and Docker. |
+| Tests | `tests/` | 304 unittest cases: real Git and SQLite, simulated inference and Docker. |
 | Deployment | `compose/`, `deploy/` | Compose files for the controller and Ollama; the worker systemd unit. |
 | Documentation | `docs/` | Architecture, current state, changelog, the milestone record and notable workflow records. |
 
@@ -86,20 +87,20 @@ PYTHONPATH=src python3 -m nullcode.core.java_workflow wait 1
 `PYTHONPATH=src` is only needed when the package is not installed. With
 `pip install -e .` the `-m nullcode...` commands work from anywhere.
 
-Full command reference, including the repository, Gradle, plan, execute and
-acceptance profiles: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
+Full command reference, including the repository, Gradle, plan, scope,
+execute and acceptance profiles: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
 
 ## Running the tests
 
 ```sh
-PYTHONPATH=src python3 -m unittest discover -s tests   # 227 tests, OK
-pytest                                                 # 227 passed, 1 known collection error
+PYTHONPATH=src python3 -m unittest discover -s tests   # 304 tests, OK
+pytest                                                 # 304 passed, 1 known collection error
 cd rust && cargo test                                  # 3 controller tests
 ```
 
 The pytest run is **not yet clean**: pytest collects one imported production
 helper whose name starts with `test_` as if it were a test, and reports an
-error for it. The 227 real test cases pass under both runners. See
+error for it. The 304 real test cases pass under both runners. See
 `docs/PROJECT_STATE.md` §6.
 
 The Python suite uses real Git repositories and real SQLite databases but

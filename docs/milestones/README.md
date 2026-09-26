@@ -17,6 +17,7 @@ historical record.
 | [MILESTONE-7B-HARDENING.md](MILESTONE-7B-HARDENING.md) | Behavioral-novelty validation |
 | [MILESTONE-7B-1.md](MILESTONE-7B-1.md) | Behavioral-delta evidence hardening |
 | [MILESTONE-7B-2.md](MILESTONE-7B-2.md) | Typed repair-target routing |
+| [MILESTONE-7C-1.md](MILESTONE-7C-1.md) | Model-proposed scope, human-granted scope |
 | [ACCEPTED-JAVA-V1.md](ACCEPTED-JAVA-V1.md) | Acceptance-gated one-file production workflow |
 | [JAVAC-REPAIR-RULE.md](JAVAC-REPAIR-RULE.md) | Narrow javac `String[]#stream()` repair guidance |
 
@@ -24,14 +25,15 @@ Milestone 1 is documented in [`rust/README.md`](../../rust/README.md).
 
 ## Proposals
 
-Design documents for work that is **not implemented**. They record a proposed
-shape and its open questions so the design can be argued about first; they are
-not approvals and claim no verification.
+Design documents written before implementation. They record a proposed shape
+and its open questions so the design can be argued about first; they are not
+approvals and claim no verification. Implemented proposals are kept as design
+records and annotated rather than rewritten.
 
 | Document | Increment |
 | --- | --- |
 | [PROPOSAL-7B-2.md](PROPOSAL-7B-2.md) | Typed repair-target routing — **implemented** as [7B.2](MILESTONE-7B-2.md); kept as the design record |
-| [PROPOSAL-7C-1.md](PROPOSAL-7C-1.md) | Model-proposed scope, human-granted scope (next autonomy milestone) |
+| [PROPOSAL-7C-1.md](PROPOSAL-7C-1.md) | Model-proposed scope, human-granted scope — **implemented** as [7C-1](MILESTONE-7C-1.md); kept as the design record |
 
 ## ⚠️ Commands in these documents are historical
 

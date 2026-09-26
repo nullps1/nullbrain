@@ -252,6 +252,29 @@ def run_job(store, job, generate_fn=generate, verify_fn=verify, artifacts=JOBS):
         store.status(job_id, "failed", str(error))
 
 
+def run_repository_job(store, job):
+    # Profile imports stay lazy: the profile modules import this one.
+    profile = json.loads(job['repo_spec']).get('profile')
+    if profile == 'gradle-junit-v1':
+        from nullcode.gradle.gradle_workflow import run_job as run_gradle_job
+        run_gradle_job(store, job)
+    elif profile == 'repo-plan-v1':
+        from nullcode.repo.repo_plan_workflow import run_job as run_plan_job
+        run_plan_job(store, job)
+    elif profile == 'repo-scope-v1':
+        from nullcode.repo.repo_scope_workflow import run_job as run_scope_job
+        run_scope_job(store, job)
+    elif profile == 'accepted-java-v1':
+        from nullcode.repo.accepted_workflow import run_job as run_accepted_job
+        run_accepted_job(store, job)
+    elif profile == 'repo-execute-v1':
+        from nullcode.repo.repo_execute_workflow import run_job as run_execute_job
+        run_execute_job(store, job)
+    else:
+        from nullcode.repo.repo_workflow import run_repo_job
+        run_repo_job(store, job)
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     sub = parser.add_subparsers(dest="action", required=True)
@@ -272,6 +295,11 @@ def main():
     plan.add_argument("--repo", required=True)
     plan.add_argument("--base", default="HEAD")
     plan.add_argument("--task", required=True)
+
+    scope = sub.add_parser("submit-scope", help="Propose (never grant) an edit scope; read-only")
+    scope.add_argument("--repo", required=True)
+    scope.add_argument("--base", default="HEAD")
+    scope.add_argument("--task", required=True)
 
     execute = sub.add_parser("submit-execute")
     execute.add_argument("--repo", required=True)
@@ -304,6 +332,10 @@ def main():
         print(json.dumps({"workflow_id": store.submit(repo_spec=spec), "status": "queued", "base_commit": spec['base_commit']}))
     elif args.action == "submit-plan":
         from nullcode.repo.repo_plan_workflow import prepare_spec
+        spec = prepare_spec(args.repo, args.base, args.task)
+        print(json.dumps({"workflow_id": store.submit(repo_spec=spec), "status": "queued", "base_commit": spec['base_commit']}))
+    elif args.action == "submit-scope":
+        from nullcode.repo.repo_scope_workflow import prepare_spec
         spec = prepare_spec(args.repo, args.base, args.task)
         print(json.dumps({"workflow_id": store.submit(repo_spec=spec), "status": "queued", "base_commit": spec['base_commit']}))
     elif args.action == "submit-execute":
@@ -351,22 +383,7 @@ def main():
                 if job:
                     print(f'Workflow {job["id"]} started', flush=True)
                     if job.get('repo_spec'):
-                        profile = json.loads(job['repo_spec']).get('profile')
-                        if profile == 'gradle-junit-v1':
-                            from nullcode.gradle.gradle_workflow import run_job as run_gradle_job
-                            run_gradle_job(store, job)
-                        elif profile == 'repo-plan-v1':
-                            from nullcode.repo.repo_plan_workflow import run_job as run_plan_job
-                            run_plan_job(store, job)
-                        elif profile == 'accepted-java-v1':
-                            from nullcode.repo.accepted_workflow import run_job as run_accepted_job
-                            run_accepted_job(store, job)
-                        elif profile == 'repo-execute-v1':
-                            from nullcode.repo.repo_execute_workflow import run_job as run_execute_job
-                            run_execute_job(store, job)
-                        else:
-                            from nullcode.repo.repo_workflow import run_repo_job
-                            run_repo_job(store, job)
+                        run_repository_job(store, job)
                     else:
                         run_job(store, job)
                     print(f'Workflow {job["id"]}: {store.show(job["id"])["status"]}', flush=True)

@@ -53,7 +53,7 @@ class RepoPlanWorkflowTests(unittest.TestCase):
             ["src/main/java/lab/Slugs.java"],
             "FILE: src/main/java/lab/Slugs.java\nclass Slugs {}",
         )
-        self.assertIn("Steps: concise prose only", prompt)
+        self.assertIn("Steps: prose only", prompt)
         self.assertIn("no code, fences, literals, or escapes", prompt)
         self.assertLessEqual(len(prompt.encode("utf-8")), 2000)
 

@@ -529,3 +529,75 @@ a controller-established `required_domain` should also narrow the candidates
 shown to the routing model. That could make a future Workflow 46 reach the
 production repair path, but it is a behavioral change and should be reviewed
 independently rather than folded into this documentation/formatting cleanup.
+
+## 18. Workflow 46 preparation: narrow candidates to a required domain
+
+The follow-up after Workflow 45 answers that question narrowly: **yes, once the
+controller has independently established a required domain, files outside that
+domain are no longer useful routing choices.**
+
+`narrow_repair_candidates(candidates, production, tests, required_domain)`
+applies after existing failure classification and explicit-contract evidence,
+but before `repair_selection_prompt()`.
+
+Rules:
+
+1. `required_domain is None` → return the candidate list unchanged and in the
+   same order;
+2. `production` → retain only candidates already listed in approved
+   production authority;
+3. `test` → retain only candidates already listed in approved test authority;
+4. invalid required-domain values fail closed;
+5. a valid required domain with no selected candidate fails closed before
+   routing inference.
+
+The helper delegates membership to `repair_route_domains()`. It does not
+classify paths itself and cannot add a file that selection did not already
+authorize.
+
+For the Workflow 45 Initials shape this changes only the offered routing set:
+
+```text
+Controller-required fault_domain: "production".
+Production files: ["src/main/java/lab/text/Initials.java"]
+Test files: []
+```
+
+The model still returns the typed routing JSON. Nothing synthesizes a model
+answer, changes `reason` semantics, or retries a rejected reply. If the model
+still names `InitialsTest.java`, that file is outside the narrowed offered
+candidate set and is rejected by the existing approved-candidate check.
+
+The existing insufficient-test-count path remains semantically equivalent: it
+already required the test domain and offered selected test files only. The new
+helper simply makes the general invariant explicit for every independent
+`required_domain`.
+
+Regression coverage includes:
+
+- no requirement preserves candidates and order;
+- production requirement removes test candidates;
+- test requirement removes production candidates;
+- impossible and invalid requirements fail closed;
+- the Workflow 45-shaped stale test route sees `Test files: []` and is
+  rejected;
+- an allowed production route reaches the repair-edit stage;
+- ambiguous Workflow 32-style evidence preserves the mixed candidate set.
+
+Unchanged:
+
+- scope grant and selected-file authority;
+- domain membership source;
+- exact explicit-contract evidence rules;
+- strict JSON parsing and non-semantic `reason`;
+- no auto-correction or second routing call;
+- two ordinary repairs and one semantic re-plan;
+- 3-file, 900-byte source, 700-byte diagnostic and 2000-byte controller limits;
+- verification, behavioral-delta and publication gates.
+
+**Live validation remains outstanding.** No Workflow 46 evidence exists yet.
+After review/merge/deploy, rerun the exact Initials task. The first required
+artifact is a `repair-routing.json` with `required_domain: production`,
+`offered.production` containing `Initials.java`, and `offered.test: []`.
+Only a production route that proceeds past routing can establish the real
+production repair-context size.

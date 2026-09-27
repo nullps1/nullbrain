@@ -22,6 +22,7 @@ from nullcode.repo.repo_execute_workflow import (
     SEMANTIC_REPLAN_BUDGET,
     explicit_contract_required_domain,
     highest_attempt_number,
+    prepare_spec,
     repair_selection_prompt,
     validate_repair_selection,
     verification_diagnostic,
@@ -502,7 +503,7 @@ class Workflow44ContractRoutingTests(Workflow32Harness):
         )
 
     def test_ambiguous_contract_keeps_required_domain_null(self):
-        self.spec = workflow.prepare_spec(self.repo, 'main', W32_TASK)
+        self.spec = prepare_spec(self.repo, 'main', W32_TASK)
         reply = route('test', TEXT_STATS_TEST, 'Expected count is wrong.')
         job_id, result, prompts = self.run_case(
             answers=self.first_round() + [reply, W32_TEST_FIXED],

@@ -2,8 +2,10 @@
 
 A repair-selection reply names a fault domain ("production" or "test") as well
 as a file, and the two must agree. The validator checks that agreement
-deterministically; it never parses `reason`, never corrects a contradiction,
-and a rejected reply ends the workflow - there is no second routing call.
+deterministically and can additionally enforce a controller-required domain
+when independent evidence establishes one. It never parses `reason`, never
+corrects a contradiction, and a rejected reply ends the workflow - there is
+no second routing call.
 
 Workflow 32 (live, Patient Zero) is the motivating shape: correct production,
 a wrong test expectation, and a routing reply whose reason blamed the test
@@ -20,7 +22,9 @@ import test_repo_execute_workflow as workflow
 from nullcode.repo.repo_execute_workflow import (
     FAULT_DOMAINS,
     SEMANTIC_REPLAN_BUDGET,
+    explicit_contract_required_domain,
     highest_attempt_number,
+    prepare_spec,
     repair_selection_prompt,
     validate_repair_selection,
     verification_diagnostic,
@@ -33,6 +37,35 @@ TEXT_STATS = 'src/main/java/lab/TextStats.java'
 TEXT_STATS_TEST = 'src/test/java/lab/TextStatsTest.java'
 
 W32_TASK = 'Add a small tested behavior improvement consistent with the existing project API.'
+
+W44_TASK = (
+    "Add a dotted(String) method to Initials that returns uppercase initials "
+    "separated and terminated by periods, for example 'hello Java 21' becomes "
+    "'H.J.2.'. Preserve the existing null and blank behavior and add focused "
+    "tests in InitialsTest."
+)
+
+W44_FAILURE = {
+    'passed': False,
+    'repairable': True,
+    'tests': {
+        'exit_code': 1,
+        'log': (
+            'InitialsTest > buildsDottedInitialsFromWhitespaceSeparatedWords() FAILED\\n'
+            '    org.opentest4j.AssertionFailedError: '
+            'expected: <H.J.2.> but was: <H.J.2>\\n'
+        ),
+    },
+    'junit': {
+        'tests': 13,
+        'failures': 1,
+        'skipped': 0,
+        'diagnostics': (
+            'buildsDottedInitialsFromWhitespaceSeparatedWords(): '
+            'expected: <H.J.2.> but was: <H.J.2>'
+        ),
+    },
+}
 
 # The generated production method was correct: it counts every character of
 # the punctuation set.
@@ -139,6 +172,87 @@ MALFORMED_REPLIES = {
 # ---------------------------------------------------------------------------
 # The validator on its own
 # ---------------------------------------------------------------------------
+
+
+class ExplicitContractRequiredDomainTests(unittest.TestCase):
+    def infer(self, task, diagnostic):
+        return explicit_contract_required_domain(task, diagnostic)
+
+    def test_expected_literal_only_requires_production(self):
+        domain, evidence = self.infer(
+            "Return 'H.J.2.' for the documented example.",
+            "expected: <H.J.2.> but was: <H.J.2>",
+        )
+        self.assertEqual(domain, 'production')
+        self.assertEqual(evidence, {
+            'kind': 'explicit-task-literal-vs-junit',
+            'expected': 'H.J.2.',
+            'actual': 'H.J.2',
+            'expected_in_task': True,
+            'actual_in_task': False,
+        })
+
+    def test_actual_literal_only_requires_test(self):
+        domain, evidence = self.infer(
+            "Return 'H.J.2' without a terminal period.",
+            "expected: <H.J.2.> but was: <H.J.2>",
+        )
+        self.assertEqual(domain, 'test')
+        self.assertFalse(evidence['expected_in_task'])
+        self.assertTrue(evidence['actual_in_task'])
+
+    def test_both_literals_are_ambiguous(self):
+        self.assertEqual(
+            self.infer(
+                "Compare 'H.J.2.' with legacy 'H.J.2'.",
+                "expected: <H.J.2.> but was: <H.J.2>",
+            ),
+            (None, None),
+        )
+
+    def test_neither_literal_is_ambiguous(self):
+        self.assertEqual(
+            self.infer(
+                "Return dotted initials.",
+                "expected: <H.J.2.> but was: <H.J.2>",
+            ),
+            (None, None),
+        )
+
+    def test_workflow_44_prefix_trap_uses_exact_literal_match(self):
+        domain, evidence = self.infer(
+            W44_TASK,
+            "expected: <H.J.2.> but was: <H.J.2>",
+        )
+        self.assertEqual(domain, 'production')
+        self.assertTrue(evidence['expected_in_task'])
+        self.assertFalse(evidence['actual_in_task'])
+
+    def test_duplicate_rendering_of_same_assertion_pair_is_allowed(self):
+        diagnostic = (
+            "JUnit: expected: <H.J.2.> but was: <H.J.2>\\n"
+            "Test log: expected: <H.J.2.> but was: <H.J.2>"
+        )
+        self.assertEqual(
+            self.infer(W44_TASK, diagnostic)[0],
+            'production',
+        )
+
+    def test_multiple_distinct_assertion_pairs_are_ambiguous(self):
+        diagnostic = (
+            "expected: <H.J.2.> but was: <H.J.2>\\n"
+            "expected: <A.B.> but was: <AB>"
+        )
+        self.assertEqual(self.infer(W44_TASK, diagnostic), (None, None))
+
+    def test_unquoted_task_text_does_not_create_a_requirement(self):
+        self.assertEqual(
+            self.infer(
+                "Return H.J.2. for the documented example.",
+                "expected: <H.J.2.> but was: <H.J.2>",
+            ),
+            (None, None),
+        )
 
 
 class RoutingValidatorTests(unittest.TestCase):
@@ -346,6 +460,73 @@ class Workflow32Harness(evidence.FlexibleHarness):
         self.assertEqual(error_row['phase'], 'error')
 
 
+class Workflow44ContractRoutingTests(Workflow32Harness):
+    task = W44_TASK
+
+    def test_wrong_test_route_is_rejected_by_explicit_task_contract(self):
+        reply = route(
+            'test',
+            TEXT_STATS_TEST,
+            "The test expects 'H.J.2.' but the actual output is 'H.J.2'.",
+        )
+        job_id, result, prompts = self.run_case(
+            answers=self.first_round() + [reply],
+            verify_results=[W44_FAILURE],
+        )
+        self.assert_rejected_before_repair(
+            job_id,
+            result,
+            prompts,
+            reply,
+            "requires fault_domain 'production'",
+        )
+
+        routing = json.loads(
+            (self.repair_dir(job_id) / 'repair-routing.json').read_text(
+                encoding='utf-8'
+            )
+        )
+        self.assertEqual(routing['required_domain'], 'production')
+        self.assertEqual(
+            routing['required_domain_evidence']['kind'],
+            'explicit-task-literal-vs-junit',
+        )
+        self.assertEqual(
+            routing['required_domain_evidence']['expected'],
+            'H.J.2.',
+        )
+        self.assertEqual(
+            routing['required_domain_evidence']['actual'],
+            'H.J.2',
+        )
+        self.assertIn(
+            'Controller-required fault_domain: "production"',
+            prompts[4],
+        )
+
+    def test_ambiguous_contract_keeps_required_domain_null(self):
+        self.spec = prepare_spec(self.repo, 'main', W32_TASK)
+        reply = route('test', TEXT_STATS_TEST, 'Expected count is wrong.')
+        job_id, result, prompts = self.run_case(
+            answers=self.first_round() + [reply, W32_TEST_FIXED],
+            verify_results=[
+                W32_FAILURE,
+                PASSED_13,
+                BASELINE_12,
+                workflow.HYBRID_DISTINGUISHING,
+            ],
+        )
+        self.assertEqual(result['status'], 'succeeded', result.get('error'))
+        routing = json.loads(
+            (self.repair_dir(job_id) / 'repair-routing.json').read_text(
+                encoding='utf-8'
+            )
+        )
+        self.assertIsNone(routing['required_domain'])
+        self.assertIsNone(routing['required_domain_evidence'])
+        self.assertNotIn('Controller-required fault_domain', prompts[4])
+
+
 class Workflow32RegressionTests(Workflow32Harness):
     def test_workflow_32_contradiction_fails_closed_before_any_repair(self):
         # A valid routing reply and a repair are queued after the
@@ -481,6 +662,10 @@ class Workflow32RegressionTests(Workflow32Harness):
         routing = json.loads((self.repair_dir(job_id) / 'repair-routing.json')
                              .read_text(encoding='utf-8'))
         self.assertEqual(routing['required_domain'], 'test')
+        self.assertEqual(
+            routing['required_domain_evidence'],
+            {'kind': 'insufficient-test-count'},
+        )
         self.assertEqual(routing['offered'], {'production': [], 'test': [TEXT_STATS_TEST]})
 
     def test_insufficient_test_count_with_test_domain_proceeds(self):
@@ -727,10 +912,11 @@ class RepairSelectionPromptTests(unittest.TestCase):
     TESTS = patient_zero.APPROVED_TESTS
 
     def build(self, candidates, task=W32_TASK, diagnostic=W32_DIAGNOSTIC,
-              summary='Add a method to count punctuation marks in the text.'):
+              summary='Add a method to count punctuation marks in the text.',
+              required_domain=None):
         return repair_selection_prompt(
             task, {'summary': summary}, list(candidates), diagnostic,
-            self.PRODUCTION, self.TESTS)
+            self.PRODUCTION, self.TESTS, required_domain=required_domain)
 
     def test_patient_zero_one_plus_one_shapes_fit(self):
         shapes = list(itertools.product(self.PRODUCTION, self.TESTS))
@@ -742,6 +928,18 @@ class RepairSelectionPromptTests(unittest.TestCase):
                 self.assertLessEqual(
                     len(self.build(shape, patient_zero.TASK,
                                    patient_zero.DIAGNOSTIC).encode()), 2000)
+
+    def test_required_domain_line_still_fits_one_plus_one_shapes(self):
+        shapes = list(itertools.product(self.PRODUCTION, self.TESTS))
+        for shape in shapes:
+            for domain in FAULT_DOMAINS:
+                with self.subTest(shape=shape, domain=domain):
+                    prompt = self.build(shape, required_domain=domain)
+                    self.assertLessEqual(len(prompt.encode()), 2000)
+                    self.assertIn(
+                        f'Controller-required fault_domain: "{domain}"',
+                        prompt,
+                    )
 
     def test_patient_zero_three_file_shapes_fit(self):
         shapes = [

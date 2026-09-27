@@ -105,6 +105,17 @@ guard, re-verification and every later gate remain the enforcement.
 `test_reason_is_evidence_only_and_never_parsed` pins this limit so it cannot
 quietly turn into a claim the system does not support.
 
+**Post-Workflow 44 hardening (2026-09-26):** the statement above remains the
+default when `required_domain is None`, and `reason` is still never parsed.
+After Workflows 42 and 44 showed the same consistent-but-wrong route on an
+explicit task example, the controller gained one narrow independent source of
+`required_domain`: one unique JUnit `expected: <...> but was: <...>` pair
+against exact single-quoted, double-quoted or backticked task literals. If
+exactly one side is an explicit task literal, that side determines the required
+domain; both/neither/multiple-pair cases remain unconstrained. Exact equality,
+not substring matching, is used. See §16 and
+[Workflow 44](../workflows/WORKFLOW-044.md).
+
 ## 5. Failure behavior
 
 A routing violation raises `ValueError` inside `run_job`. The existing handler
@@ -311,8 +322,11 @@ no function named `test_*`.
 
 ## 13. Limitations and what remains unproven
 
-- **Consistent-but-wrong routing is not detected.** Typed routing narrows the
-  Workflow 32 failure class; it does not eliminate it (§4).
+- **Consistent-but-wrong routing is only detected when an independent
+  `required_domain` applies.** The original typed-routing invariant alone
+  still cannot prove semantic correctness (§4). After Workflow 44, one narrow
+  explicit-task-literal/JUnit assertion case can require a domain; ambiguous
+  cases remain subject to the original limitation (§16).
 - **The model may not state its domain honestly.** Under the new schema,
   Workflow 32's model could as easily have replied `production` + production
   file. Only live runs will show how often contradictions are now caught at
@@ -397,3 +411,84 @@ step 3 remains outstanding: no live workflow has yet entered a
 `fault_domain: production` repair under 7B.2. A live contradictory typed route
 has also not been observed; that rejection path remains regression-tested
 rather than live-observed.
+
+**[Workflow 42](../workflows/WORKFLOW-042.md) and
+[Workflow 44](../workflows/WORKFLOW-044.md): prompt-only semantic routing did
+not close the consistent-but-wrong case.** Both runs used the explicit Initials
+contract `'hello Java 21' becomes 'H.J.2.'`. In both cases the candidate
+behavior lacked the terminal period while the generated test expected the
+explicit task value; the model still selected the typed `test` domain. The
+routes were internally consistent and therefore accepted under the original
+7B.2 invariants. Workflow 42 later stopped at 2307/2000 bytes; Workflow 44,
+after live-validating the planner-format hardening, stopped at 2324/2000 bytes
+for the wrong test target.
+
+These runs do not prove that a production repair itself exceeds the controller
+budget. They do prove that repeated prompt wording is not a sufficient
+enforcement boundary for an explicit contract assertion.
+
+## 16. Post-Workflow 44 explicit-contract required domain
+
+The follow-up after Workflow 44 keeps the typed model reply and the existing
+`validate_repair_selection()` gate, but can populate `required_domain` from
+independent deterministic evidence.
+
+`explicit_contract_required_domain(task, diagnostic)` is deliberately
+narrow:
+
+1. extract JUnit-shaped `expected: <...> but was: <...>` pairs from the
+   bounded verification diagnostic;
+2. deduplicate identical renderings of the same pair;
+3. require exactly one distinct pair;
+4. collect complete task literals only from single quotes, double quotes and
+   backticks;
+5. compare expected and actual to those literals by exact equality;
+6. expected only → `production`;
+7. actual only → `test`;
+8. both, neither, equal expected/actual, or multiple distinct assertion pairs
+   → no deterministic requirement.
+
+This specifically pins the Workflow 44 prefix trap: `H.J.2` is not treated as
+present merely because it is a substring of the explicit `H.J.2.` literal.
+
+When a required domain exists, the routing prompt states it and the existing
+validator enforces it. A conflicting model reply is rejected. The controller
+does **not** rewrite the domain or file, parse `reason`, retry routing, or add
+repair attempts.
+
+`repair-routing.json` gains `required_domain_evidence`:
+
+```json
+{
+  "required_domain": "production",
+  "required_domain_evidence": {
+    "kind": "explicit-task-literal-vs-junit",
+    "expected": "H.J.2.",
+    "actual": "H.J.2",
+    "expected_in_task": true,
+    "actual_in_task": false
+  }
+}
+```
+
+For insufficient executed-test-count failures, the pre-existing
+`required_domain: test` behavior is unchanged and now records
+`{"kind":"insufficient-test-count"}` as its evidence. When no independent
+requirement applies, both fields remain null.
+
+Unchanged:
+
+- selected-file authority and domain membership;
+- strict JSON parsing;
+- free-text `reason` semantics;
+- no auto-correction and no second routing call;
+- the two ordinary repair attempts;
+- one semantic re-plan;
+- 3-file / 900-byte source limits;
+- 2000-byte controller limit;
+- verification, behavioral-delta and publication gates.
+
+**Next live proof:** Workflow 45 reruns the same Initials task. The controller
+should persist `required_domain: production`. A model `test` reply must fail
+before repair editing; a model `production` reply may proceed, at which point
+the production repair-context size can finally be measured honestly.

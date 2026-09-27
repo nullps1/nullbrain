@@ -1,8 +1,8 @@
 # NullCode project state
 
 **Updated:** 2026-09-26, with Milestone 7C-1 merged and live Pi validation
-through Workflow 43, plus deterministic planner-format hardening.
-**Base main before this follow-up:** `7b66edb` (merge of PR #12, Milestone 7C-1).
+through Workflow 44, plus explicit-contract repair-domain enforcement.
+**Base main before this follow-up:** `8e110ad` (merge of PR #15, Workflow 43 planner-format hardening).
 **Key implementation commits:** `34fc203` (7C-2 publisher), `53e09bb` / `6c78080`
 (7C-2 hardening/docs), `88c015b` (insufficient-test-count repair), `a48d419`
 (behavioral-delta gate), `3c7e724` (7B.1 evidence hardening + semantic
@@ -17,6 +17,68 @@ state at its own time, and its test counts and "outstanding" items are
 historical unless a later section repeats them. Sections 1–9 retain the
 refactor-era snapshot, refreshed where marked. Sections 10 and 11 are current
 rules.
+
+## Current update: Workflow 44 explicit-contract repair-domain enforcement
+
+Workflow 44 reran the exact Initials task after the Workflow 43 planner-format
+patch. Selection inference **154** and planning inference **155** passed; the
+plan contained only short prose steps, so the planner-format hardening is now
+live-validated. The workflow proceeded through editing, compiling, testing and
+repair diagnosis.
+
+Repair-routing inference **158** still chose:
+
+```json
+{
+  "fault_domain": "test",
+  "file": "src/test/java/lab/text/InitialsTest.java",
+  "reason": "The test expects 'H.J.2.' but the actual output is 'H.J.2'."
+}
+```
+
+That route is semantically wrong for the explicit task contract, but the
+pre-follow-up validator accepted it because `required_domain` was `null` and
+the typed domain agreed with the selected test file. The following wrong-target
+repair context needed **2324/2000 bytes** and failed closed before a repair
+edit. That measurement does not justify raising the controller ceiling because
+it belongs to the wrong repair target.
+
+Workflow 42 and Workflow 44 together show that prompt-only task-contract
+guidance is insufficient. This follow-up uses the existing
+`required_domain` enforcement path rather than parsing the model's reason or
+auto-correcting its reply.
+
+`explicit_contract_required_domain(task, diagnostic)` now derives a required
+domain only when one unique JUnit `expected: <...> but was: <...>` pair is
+present and exactly one side appears as a complete single-quoted,
+double-quoted or backticked task literal:
+
+- expected explicit, actual not explicit → `production`;
+- actual explicit, expected not explicit → `test`;
+- both or neither explicit → no requirement;
+- multiple distinct assertion pairs → no requirement.
+
+Matching is exact, not substring-based. This specifically prevents the
+Workflow 44 prefix trap where `H.J.2` is a prefix of `H.J.2.`.
+
+The model still supplies `fault_domain`, `file` and `reason`. The prompt
+states a deterministic requirement when one exists, but the workflow does not
+rewrite the reply. A conflicting reply fails at the existing
+`validate_repair_selection()` gate with no second routing call. The routing
+artifact now records `required_domain_evidence` alongside
+`required_domain`.
+
+No file authority, source limit, 2000-byte controller limit, repair budget,
+semantic re-plan budget, strict JSON behavior or publication boundary changes.
+
+See [Workflow 44](workflows/WORKFLOW-044.md).
+
+**Next:** validate this branch on the Pi, merge and pull it, restart
+`nullcode-worker`, then run the exact same Initials task as Workflow 45.
+If the model again replies `test`, the live success criterion is deterministic
+rejection before repair editing with `required_domain: production`. If the
+model replies `production`, measure the production repair context before
+considering any context compaction.
 
 ## Current update: Workflow 43 planner-format enforcement
 

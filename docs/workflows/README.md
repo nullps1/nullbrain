@@ -55,6 +55,7 @@ Workflow records follow the documentation-trail convention in
 | [41](WORKFLOW-041.md) | correct Initials selection; planner embedded Java in steps and malformed JSON failed closed |
 | [42](WORKFLOW-042.md) | candidate test caught missing terminal period; semantically wrong typed test route then failed closed at 2307/2000 bytes |
 | [43](WORKFLOW-043.md) | repeated planner source embedding produced illegal JSON escape; motivates deterministic plan-step format gate |
+| [44](WORKFLOW-044.md) | planner fix validated live; prompt-only repair routing again chose test against an explicit production contract |
 
 File names are zero-padded to three digits (`WORKFLOW-025.md`) so they sort
 correctly; prose uses the plain number ("Workflow 25").

@@ -241,3 +241,14 @@ before routing, analogous to the existing insufficient-test-count narrowing.
 That design should be reviewed separately because it changes what choices the
 model sees, even though it would only remove controller-disallowed choices and
 would not grant new edit authority.
+
+### Later follow-up for Workflow 46 preparation
+
+Later work on branch `fix/wf46-required-domain-candidate-narrowing` implements
+that reviewed direction without changing Workflow 45's historical result.
+When `required_domain` is non-null, only already-selected files in that domain
+are offered to repair routing. Ambiguous evidence still offers the original
+candidate set. A required domain with no selected candidate fails closed.
+
+This later change is preparation only; it is not Workflow 46 evidence.
+Workflow 46 must still be run and documented separately.

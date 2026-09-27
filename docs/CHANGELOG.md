@@ -1,5 +1,31 @@
 # Changelog
 
+### Workflow 46 preparation: required-domain candidate narrowing — 2026-09-26
+
+- Follow Workflow 45's live validation by removing repair candidates outside an
+  independently established `required_domain` before the routing model is
+  called.
+- Add `narrow_repair_candidates(...)`, which reuses
+  `repair_route_domains()` and can only remove already-selected files:
+  production requirements keep production candidates, test requirements keep
+  test candidates, and a null requirement preserves the original candidates
+  and order.
+- Fail closed before routing if a controller-required domain has no selected
+  candidate. Invalid controller domains also fail rather than normalize.
+- For the Initials/WF45 shape, the next routing prompt should show the selected
+  production file and `Test files: []` while retaining
+  `required_domain: production`.
+- Keep the model responsible for returning the typed route; no route is
+  synthesized or auto-corrected. A stale reply naming a removed file remains
+  invalid.
+- Add helper and workflow regressions covering production/test narrowing,
+  ambiguous preservation, impossible-domain failure, stale test-route
+  rejection, and a required production route reaching the repair-edit stage.
+- No authority, inference retry, repair count, semantic-replan allowance,
+  source/controller budget, verification or publication boundary changes.
+- Workflow 46 has **not** run yet; this entry documents only the preparation
+  patch. Live evidence belongs in a future `WORKFLOW-046.md`.
+
 ### Workflow 45 live validation and routing-prompt newline cleanup — 2026-09-26
 
 - Record [Workflow 45](workflows/WORKFLOW-045.md): selection inference 159 and

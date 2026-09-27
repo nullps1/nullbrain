@@ -1,9 +1,9 @@
 # NullCode project state
 
 **Updated:** 2026-09-26, with Milestone 7C-1 merged and live Pi validation
-through Workflow 45. The explicit-contract repair-domain gate is now
-live-validated.
-**Base main before this follow-up:** `1d822df` (merge of PR #16, explicit-contract repair-domain enforcement).
+through Workflow 45. Workflow 46 preparation now narrows repair candidates to
+an already-established controller-required domain.
+**Base main before this follow-up:** `8c34d24` (merge of PR #17, Workflow 45 documentation and prompt-newline cleanup).
 **Key implementation commits:** `34fc203` (7C-2 publisher), `53e09bb` / `6c78080`
 (7C-2 hardening/docs), `88c015b` (insufficient-test-count repair), `a48d419`
 (behavioral-delta gate), `3c7e724` (7B.1 evidence hardening + semantic
@@ -19,6 +19,64 @@ state at its own time, and its test counts and "outstanding" items are
 historical unless a later section repeats them. Sections 1–9 retain the
 refactor-era snapshot, refreshed where marked. Sections 10 and 11 are current
 rules.
+
+## Current update: Workflow 46 preparation — required-domain candidate narrowing
+
+Workflow 45 live-proved that the controller can independently establish
+`required_domain: production` from the explicit Initials task and JUnit
+expected/actual pair, but the routing model still selected the disallowed
+`test` domain. The validator correctly rejected that reply before repair
+editing.
+
+This follow-up removes that already-disallowed choice **before** repair routing.
+After the existing failure classification and explicit-contract analysis,
+`narrow_repair_candidates(...)` intersects the already-selected repair
+candidates with the controller-required domain:
+
+- `required_domain: production` → only selected production files remain;
+- `required_domain: test` → only selected test files remain;
+- `required_domain: null` → candidate list and order remain unchanged.
+
+The helper uses the same `repair_route_domains()` membership derived from the
+approved production/test authority lists. It cannot add a file. If a required
+domain has no already-selected candidate, the workflow fails closed before
+asking the model to route an impossible repair.
+
+For the Workflow 45 / Initials shape, the routing prompt becomes:
+
+```text
+Controller-required fault_domain: "production".
+Production files: ["src/main/java/lab/text/Initials.java"]
+Test files: []
+```
+
+The model still must return a typed `fault_domain`, `file` and `reason`;
+the controller does not synthesize or auto-correct a route. If the model names
+the removed test file anyway, the existing candidate validator rejects it as
+unapproved.
+
+This is intentionally narrower than changing routing semantics:
+
+- no selected-file authority expands;
+- no new domain classifier is added;
+- `reason` remains non-semantic;
+- no routing retry is added;
+- the two ordinary repair attempts remain unchanged;
+- the semantic re-plan budget remains one;
+- the 3-file, 900-byte source, 700-byte diagnostic and 2000-byte controller
+  limits remain unchanged;
+- verification, behavioral-delta and publication gates remain unchanged.
+
+Regression coverage pins production-only narrowing, test-only narrowing,
+ambiguous/no-requirement preservation, impossible required-domain fail-closed
+behavior, stale wrong-domain model replies, and a production route proceeding
+through the repair-edit stage in the workflow harness.
+
+**Next live proof:** after this patch is reviewed, validated, merged, pulled and
+the worker restarted, Workflow 46 should rerun the exact Initials task. The
+primary evidence is that `repair-routing.json.offered.test` is empty while
+`required_domain` is `production`. If the model follows the narrowed prompt,
+the run can finally measure the real production repair context.
 
 ## Current update: Workflow 45 live validation of explicit-contract routing
 

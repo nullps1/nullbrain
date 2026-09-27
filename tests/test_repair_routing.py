@@ -24,6 +24,7 @@ from nullcode.repo.repo_execute_workflow import (
     SEMANTIC_REPLAN_BUDGET,
     explicit_contract_required_domain,
     highest_attempt_number,
+    narrow_repair_candidates,
     prepare_spec,
     repair_selection_prompt,
     validate_repair_selection,
@@ -172,6 +173,48 @@ MALFORMED_REPLIES = {
 # ---------------------------------------------------------------------------
 # The validator on its own
 # ---------------------------------------------------------------------------
+
+
+class RequiredDomainCandidateNarrowingTests(unittest.TestCase):
+    PRODUCTION = [PROD, TEXT_STATS]
+    TESTS = [TEST, TEXT_STATS_TEST]
+    CANDIDATES = [PROD, TEST, TEXT_STATS, TEXT_STATS_TEST]
+
+    def narrow(self, required):
+        return narrow_repair_candidates(
+            self.CANDIDATES,
+            self.PRODUCTION,
+            self.TESTS,
+            required,
+        )
+
+    def test_no_requirement_preserves_candidates_and_order(self):
+        self.assertEqual(self.narrow(None), self.CANDIDATES)
+
+    def test_production_requirement_removes_test_candidates(self):
+        self.assertEqual(self.narrow('production'), [PROD, TEXT_STATS])
+
+    def test_test_requirement_removes_production_candidates(self):
+        self.assertEqual(self.narrow('test'), [TEST, TEXT_STATS_TEST])
+
+    def test_required_domain_with_no_candidate_fails_closed(self):
+        with self.assertRaisesRegex(
+            ValueError,
+            "Required repair domain 'production' has no selected candidate",
+        ):
+            narrow_repair_candidates(
+                [TEST],
+                self.PRODUCTION,
+                self.TESTS,
+                'production',
+            )
+
+    def test_invalid_required_domain_fails_closed(self):
+        with self.assertRaisesRegex(
+            ValueError,
+            'Invalid controller-required fault_domain',
+        ):
+            self.narrow('implementation')
 
 
 class ExplicitContractRequiredDomainTests(unittest.TestCase):
@@ -463,7 +506,7 @@ class Workflow32Harness(evidence.FlexibleHarness):
 class Workflow44ContractRoutingTests(Workflow32Harness):
     task = W44_TASK
 
-    def test_wrong_test_route_is_rejected_by_explicit_task_contract(self):
+    def test_wrong_test_route_is_removed_from_offered_candidates(self):
         reply = route(
             'test',
             TEXT_STATS_TEST,
@@ -478,7 +521,7 @@ class Workflow44ContractRoutingTests(Workflow32Harness):
             result,
             prompts,
             reply,
-            "requires fault_domain 'production'",
+            'unapproved file',
         )
 
         routing = json.loads(
@@ -499,10 +542,67 @@ class Workflow44ContractRoutingTests(Workflow32Harness):
             routing['required_domain_evidence']['actual'],
             'H.J.2',
         )
+        self.assertEqual(
+            routing['offered'],
+            {'production': [TEXT_STATS], 'test': []},
+        )
         self.assertIn(
             'Controller-required fault_domain: "production"',
             prompts[4],
         )
+        self.assertIn(
+            'Production files: ["' + TEXT_STATS + '"]',
+            prompts[4],
+        )
+        self.assertIn('Test files: []', prompts[4])
+
+    def test_required_production_route_can_reach_repair_edit(self):
+        job_id, result, prompts = self.run_case(
+            answers=self.first_round() + [
+                route(
+                    'production',
+                    TEXT_STATS,
+                    'Expected matches the explicit task contract.',
+                ),
+                W32_PROD_BROKEN,
+            ],
+            verify_results=[
+                W44_FAILURE,
+                PASSED_13,
+                BASELINE_12,
+                workflow.HYBRID_DISTINGUISHING,
+            ],
+        )
+        self.assertEqual(result['status'], 'succeeded', result.get('error'))
+        self.assertEqual(len(prompts), 6)
+
+        routing = json.loads(
+            (self.repair_dir(job_id) / 'repair-routing.json').read_text(
+                encoding='utf-8'
+            )
+        )
+        self.assertEqual(routing['required_domain'], 'production')
+        self.assertEqual(
+            routing['offered'],
+            {'production': [TEXT_STATS], 'test': []},
+        )
+        self.assertIs(routing['accepted'], True)
+
+        selection = json.loads(
+            (self.repair_dir(job_id) / 'repair-selection.json').read_text(
+                encoding='utf-8'
+            )
+        )
+        self.assertEqual(selection['fault_domain'], 'production')
+        self.assertEqual(selection['file'], TEXT_STATS)
+
+        self.assertIn(
+            'Production files: ["' + TEXT_STATS + '"]',
+            prompts[4],
+        )
+        self.assertIn('Test files: []', prompts[4])
+        self.assertIn('TARGET:', prompts[5])
+        self.assertIn('class TextStats {', prompts[5])
 
     def test_ambiguous_contract_keeps_required_domain_null(self):
         self.spec = prepare_spec(self.repo, 'main', W32_TASK)
@@ -524,7 +624,19 @@ class Workflow44ContractRoutingTests(Workflow32Harness):
         )
         self.assertIsNone(routing['required_domain'])
         self.assertIsNone(routing['required_domain_evidence'])
+        self.assertEqual(
+            routing['offered'],
+            {'production': [TEXT_STATS], 'test': [TEXT_STATS_TEST]},
+        )
         self.assertNotIn('Controller-required fault_domain', prompts[4])
+        self.assertIn(
+            'Production files: ["' + TEXT_STATS + '"]',
+            prompts[4],
+        )
+        self.assertIn(
+            'Test files: ["' + TEXT_STATS_TEST + '"]',
+            prompts[4],
+        )
 
 
 class Workflow32RegressionTests(Workflow32Harness):

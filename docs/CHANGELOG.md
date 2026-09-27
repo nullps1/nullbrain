@@ -1,5 +1,34 @@
 # Changelog
 
+### Workflow 44 explicit-contract repair-domain enforcement — 2026-09-26
+
+- Record [Workflow 44](workflows/WORKFLOW-044.md): selection inference 154 and
+  planning inference 155 passed after the Workflow 43 planner-format patch,
+  then the run reached editing, compilation, testing and repair diagnosis.
+- Repair-routing inference 158 again chose the `test` domain for the explicit
+  Initials contract while stating the mismatch itself: expected `H.J.2.`,
+  actual `H.J.2`. Because the typed domain and test file agreed and
+  `required_domain` was null, the route was accepted.
+- The resulting wrong-target repair context required 2324/2000 bytes and
+  failed closed before repair editing. Do not use that measurement to justify
+  a controller-limit increase; a production-target measurement is still
+  outstanding.
+- Add narrow deterministic contract evidence on top of 7B.2's existing
+  `required_domain` path. One unique JUnit expected/actual pair can require a
+  domain only when exactly one side appears as a complete quoted/backticked
+  task literal. Exact equality prevents prefix/substr matching such as
+  `H.J.2` inside `H.J.2.`.
+- Ambiguous evidence remains advisory: both/neither task values or multiple
+  distinct assertion pairs leave `required_domain` null.
+- A controller-required domain is stated in the routing prompt and enforced by
+  the existing validator. The model reply is never auto-corrected, `reason`
+  is still not parsed, and there is no second routing call.
+- Persist `required_domain_evidence` in `repair-routing.json` so the source
+  of a controller requirement is auditable.
+- Add Workflow 44, inverse, ambiguity, duplicate-diagnostic and prefix-trap
+  regressions plus prompt-budget coverage. No controller/source/scope/repair
+  budget changes.
+
 ### Workflow 43 planner-format enforcement follow-up — 2026-09-26
 
 - Record [Workflow 43](workflows/WORKFLOW-043.md): selection inference 152 again

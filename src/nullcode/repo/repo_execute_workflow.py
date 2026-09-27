@@ -1958,10 +1958,10 @@ def run_job(store, job, generate_fn=generate, verify_fn=verify_gradle, artifacts
                     artifact_dir=str(repair_dir),
                 )
 
-                # A production edit cannot restore deleted test cases, and the
-                # repair budget is only two attempts. Offer the already-selected
-                # test files alone for this failure reason. This removes a
-                # choice; it never adds edit authority.
+                # Start from the existing short-count narrowing: a
+                # production edit cannot restore deleted test cases. Any later
+                # controller-required domain can narrow this set further, but
+                # neither path can add edit authority.
                 repair_candidates = selected_tests if short_count else selected
 
                 if short_count:

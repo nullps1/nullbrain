@@ -940,6 +940,11 @@ class RepairSelectionPromptTests(unittest.TestCase):
                         f'Controller-required fault_domain: "{domain}"',
                         prompt,
                     )
+                    self.assertNotIn('\\nTask:', prompt)
+                    self.assertIn(
+                        f'Controller-required fault_domain: "{domain}".\nTask:',
+                        prompt,
+                    )
 
     def test_patient_zero_three_file_shapes_fit(self):
         shapes = [

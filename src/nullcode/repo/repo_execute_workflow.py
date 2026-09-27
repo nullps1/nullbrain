@@ -765,11 +765,13 @@ FAULT_DOMAIN_TEST = "test"
 FAULT_DOMAINS = (FAULT_DOMAIN_PRODUCTION, FAULT_DOMAIN_TEST)
 
 _ASSERTION_EXPECTED_ACTUAL = re.compile(
-    r"expected:\\s*<([^<>\\r\\n]*)>\\s*but was:\\s*<([^<>\\r\\n]*)>",
+    r"expected:\s*<([^<>\r\n]*)>\s*but was:\s*<([^<>\r\n]*)>",
     re.IGNORECASE,
 )
 _TASK_EXPLICIT_LITERAL = re.compile(
-    r'"([^"\\r\\n]*)"|\\'([^\\'\\r\\n]*)\\'|`([^`\\r\\n]*)`'
+    r'"([^"\r\n]*)"'
+    r"|'([^'\r\n]*)'"
+    r"|\`([^\`\r\n]*)\`"
 )
 
 

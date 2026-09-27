@@ -764,6 +764,60 @@ FAULT_DOMAIN_PRODUCTION = "production"
 FAULT_DOMAIN_TEST = "test"
 FAULT_DOMAINS = (FAULT_DOMAIN_PRODUCTION, FAULT_DOMAIN_TEST)
 
+_ASSERTION_EXPECTED_ACTUAL = re.compile(
+    r"expected:\\s*<([^<>\\r\\n]*)>\\s*but was:\\s*<([^<>\\r\\n]*)>",
+    re.IGNORECASE,
+)
+_TASK_EXPLICIT_LITERAL = re.compile(
+    r'"([^"\\r\\n]*)"|\\'([^\\'\\r\\n]*)\\'|`([^`\\r\\n]*)`'
+)
+
+
+def explicit_contract_required_domain(task, diagnostic):
+    """Infer a required repair domain only from exact explicit contract text.
+
+    This is intentionally narrow. A JUnit expected/actual pair is usable only
+    when the diagnostic contains one unique pair (duplicate renderings of the
+    same pair are fine). The task must contain exactly one side as a complete
+    single-quoted, double-quoted or backticked literal. Substring matches do
+    not count. Ambiguous evidence returns (None, None).
+    """
+    pairs = list(dict.fromkeys(_ASSERTION_EXPECTED_ACTUAL.findall(diagnostic)))
+
+    if len(pairs) != 1:
+        return None, None
+
+    expected, actual = pairs[0]
+
+    if expected == actual:
+        return None, None
+
+    literals = {
+        value
+        for match in _TASK_EXPLICIT_LITERAL.findall(task)
+        for value in match
+        if value
+    }
+    expected_in_task = expected in literals
+    actual_in_task = actual in literals
+
+    if expected_in_task == actual_in_task:
+        return None, None
+
+    domain = (
+        FAULT_DOMAIN_PRODUCTION
+        if expected_in_task
+        else FAULT_DOMAIN_TEST
+    )
+
+    return domain, {
+        "kind": "explicit-task-literal-vs-junit",
+        "expected": expected,
+        "actual": actual,
+        "expected_in_task": expected_in_task,
+        "actual_in_task": actual_in_task,
+    }
+
 
 def repair_route_domains(candidates, production, tests):
     """Offered repair candidates grouped by fault domain.
@@ -779,10 +833,17 @@ def repair_route_domains(candidates, production, tests):
     }
 
 
-def repair_selection_prompt(task, plan, candidates, diagnostic, production, tests):
-    # ADVISORY ONLY. The prompt asks for a fault domain and a file listed
-    # under it; validate_repair_selection() is what enforces the agreement.
+def repair_selection_prompt(task, plan, candidates, diagnostic, production, tests,
+                            required_domain=None):
+    # The model still chooses a typed route. When deterministic evidence has
+    # already established a required domain, the prompt states that constraint
+    # and validate_repair_selection() enforces it; nothing is auto-corrected.
     domains = repair_route_domains(candidates, production, tests)
+    required = (
+        f'Controller-required fault_domain: "{required_domain}".\\n'
+        if required_domain is not None
+        else ""
+    )
     prompt = (
         "A Java change failed verification. Pick ONE listed file to repair; "
         "do not write code. Use TASK as source of truth. Compare assertion "
@@ -795,7 +856,8 @@ def repair_selection_prompt(task, plan, candidates, diagnostic, production, test
         "Return JSON only: "
         '{"fault_domain":"production|test","file":"listed/path.java",'
         '"reason":"short evidence-based explanation"}.\n'
-        f"Task: {task}\n"
+        + required
+        + f"Task: {task}\n"
         f"Production files: {json.dumps(domains[FAULT_DOMAIN_PRODUCTION])}\n"
         f"Test files: {json.dumps(domains[FAULT_DOMAIN_TEST])}\n"
         f"Plan summary: {str(plan.get('summary', ''))[:220]}\n"
@@ -1871,6 +1933,20 @@ def run_job(store, job, generate_fn=generate, verify_fn=verify_gradle, artifacts
                 # choice; it never adds edit authority.
                 repair_candidates = selected_tests if short_count else selected
 
+                if short_count:
+                    required_domain = FAULT_DOMAIN_TEST
+                    required_domain_evidence = {
+                        "kind": "insufficient-test-count",
+                    }
+                else:
+                    (
+                        required_domain,
+                        required_domain_evidence,
+                    ) = explicit_contract_required_domain(
+                        spec["task"],
+                        diagnostic,
+                    )
+
                 prompt = repair_selection_prompt(
                     spec["task"],
                     plan,
@@ -1878,6 +1954,7 @@ def run_job(store, job, generate_fn=generate, verify_fn=verify_gradle, artifacts
                     diagnostic,
                     production,
                     tests,
+                    required_domain=required_domain,
                 )
 
                 (repair_dir / "selection-prompt.txt").write_text(
@@ -1907,9 +1984,8 @@ def run_job(store, job, generate_fn=generate, verify_fn=verify_gradle, artifacts
                     "offered": repair_route_domains(
                         repair_candidates, production, tests,
                     ),
-                    "required_domain": (
-                        FAULT_DOMAIN_TEST if short_count else None
-                    ),
+                    "required_domain": required_domain,
+                    "required_domain_evidence": required_domain_evidence,
                     "response": None,
                     "accepted": False,
                     "error": None,

@@ -2,8 +2,10 @@
 
 A repair-selection reply names a fault domain ("production" or "test") as well
 as a file, and the two must agree. The validator checks that agreement
-deterministically; it never parses `reason`, never corrects a contradiction,
-and a rejected reply ends the workflow - there is no second routing call.
+deterministically and can additionally enforce a controller-required domain
+when independent evidence establishes one. It never parses `reason`, never
+corrects a contradiction, and a rejected reply ends the workflow - there is
+no second routing call.
 
 Workflow 32 (live, Patient Zero) is the motivating shape: correct production,
 a wrong test expectation, and a routing reply whose reason blamed the test
@@ -660,6 +662,10 @@ class Workflow32RegressionTests(Workflow32Harness):
         routing = json.loads((self.repair_dir(job_id) / 'repair-routing.json')
                              .read_text(encoding='utf-8'))
         self.assertEqual(routing['required_domain'], 'test')
+        self.assertEqual(
+            routing['required_domain_evidence'],
+            {'kind': 'insufficient-test-count'},
+        )
         self.assertEqual(routing['offered'], {'production': [], 'test': [TEXT_STATS_TEST]})
 
     def test_insufficient_test_count_with_test_domain_proceeds(self):

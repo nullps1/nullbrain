@@ -502,8 +502,7 @@ class Workflow44ContractRoutingTests(Workflow32Harness):
         )
 
     def test_ambiguous_contract_keeps_required_domain_null(self):
-        self.task = W32_TASK
-        self.configure(editable_tests=[TEXT_STATS_TEST])
+        self.spec = workflow.prepare_spec(self.repo, 'main', W32_TASK)
         reply = route('test', TEXT_STATS_TEST, 'Expected count is wrong.')
         job_id, result, prompts = self.run_case(
             answers=self.first_round() + [reply, W32_TEST_FIXED],

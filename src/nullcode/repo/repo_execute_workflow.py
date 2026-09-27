@@ -756,10 +756,11 @@ def verification_diagnostic(result, minimum=None):
 # expectation and a target naming the production file; nothing deterministic
 # could see that, because the diagnosis lived only in prose.
 #
-# The validator checks agreement between two model claims. It cannot check
-# that either claim is right, it never parses `reason`, and it never corrects
-# a contradiction: a contradictory or malformed reply fails the workflow.
-# There is no second routing call.
+# The validator always checks agreement between the model's typed domain and
+# file. When independent deterministic evidence establishes a required domain
+# (insufficient test count, or one exact explicit task literal matching one
+# side of a unique JUnit expected/actual pair), it enforces that too. It never
+# parses `reason`, never auto-corrects a reply, and never asks a second time.
 FAULT_DOMAIN_PRODUCTION = "production"
 FAULT_DOMAIN_TEST = "test"
 FAULT_DOMAINS = (FAULT_DOMAIN_PRODUCTION, FAULT_DOMAIN_TEST)
@@ -880,8 +881,8 @@ def validate_repair_selection(data, candidates, production, tests,
     Rejects, in order: a non-object reply; a missing, non-string or unknown
     fault_domain (exact match only - no case folding, trimming, aliases or
     default); a file outside the offered candidates; a domain other than the
-    one this failure class requires; a file not listed under the stated
-    domain; an empty reason. Nothing is inferred and nothing is corrected.
+    one deterministic evidence requires; a file not listed under the stated
+    domain; an empty reason. Nothing is corrected from the model reply.
     """
     if not isinstance(data, dict):
         raise ValueError("Repair selection must be a JSON object")

@@ -843,7 +843,7 @@ def repair_selection_prompt(task, plan, candidates, diagnostic, production, test
     # and validate_repair_selection() enforces it; nothing is auto-corrected.
     domains = repair_route_domains(candidates, production, tests)
     required = (
-        f'Controller-required fault_domain: "{required_domain}".\\n'
+        f'Controller-required fault_domain: "{required_domain}".\n'
         if required_domain is not None
         else ""
     )

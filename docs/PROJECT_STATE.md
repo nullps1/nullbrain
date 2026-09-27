@@ -1,13 +1,15 @@
 # NullCode project state
 
 **Updated:** 2026-09-26, with Milestone 7C-1 merged and live Pi validation
-through Workflow 44, plus explicit-contract repair-domain enforcement.
-**Base main before this follow-up:** `8e110ad` (merge of PR #15, Workflow 43 planner-format hardening).
+through Workflow 45. The explicit-contract repair-domain gate is now
+live-validated.
+**Base main before this follow-up:** `1d822df` (merge of PR #16, explicit-contract repair-domain enforcement).
 **Key implementation commits:** `34fc203` (7C-2 publisher), `53e09bb` / `6c78080`
 (7C-2 hardening/docs), `88c015b` (insufficient-test-count repair), `a48d419`
 (behavioral-delta gate), `3c7e724` (7B.1 evidence hardening + semantic
-re-plan), `60c15ce` (Patient Zero compatibility tests, test-only), and
-`3cd3ed1` (7B.2 typed repair routing).
+re-plan), `60c15ce` (Patient Zero compatibility tests, test-only),
+`3cd3ed1` (7B.2 typed repair routing), and `060378e` (explicit task-contract
+required-domain enforcement).
 Development branches are deleted after merge; commits are the durable
 references.
 
@@ -17,6 +19,62 @@ state at its own time, and its test counts and "outstanding" items are
 historical unless a later section repeats them. Sections 1–9 retain the
 refactor-era snapshot, refreshed where marked. Sections 10 and 11 are current
 rules.
+
+## Current update: Workflow 45 live validation of explicit-contract routing
+
+Workflow 45 reran the same Initials task after PR #16 merged. Selection
+inference **159** and planning inference **160** passed. The workflow continued
+through editing, compilation and testing; attempt 3's latest recorded inference
+job was **162**. Candidate verification again observed:
+
+`expected: <H.J.2.> but was: <H.J.2>`
+
+This time the controller derived the intended domain independently of the model:
+
+```json
+{
+  "required_domain": "production",
+  "required_domain_evidence": {
+    "kind": "explicit-task-literal-vs-junit",
+    "expected": "H.J.2.",
+    "actual": "H.J.2",
+    "expected_in_task": true,
+    "actual_in_task": false
+  }
+}
+```
+
+Repair-routing inference **163** still returned `fault_domain: test` targeting
+`InitialsTest.java`, with a reason that accurately restated the mismatch. The
+existing validator rejected that typed-but-semantically-wrong route with:
+
+`Repair 1 routing is contradictory: this failure requires fault_domain 'production'`
+
+The routing artifact persisted `accepted: false`. No repair edit was built,
+no wrong-target repair-context measurement occurred, and no commit or
+publication occurred. This is the first live validation that the post-Workflow
+44 explicit-contract gate converts the repeated Workflow 42/44 routing failure
+from an accepted wrong route into an immediate deterministic rejection.
+
+Workflow 45 therefore closes the specific explicit-contract contradiction
+detection proof. It does **not** yet prove the size or viability of a correctly
+routed production repair context, because the model did not choose
+`production`.
+
+The live routing prompt also exposed a formatting-only defect: the controller
+requirement was followed by the literal characters `\n` before `Task:`
+instead of a real newline. Deterministic enforcement was unaffected. This
+follow-up changes only that prompt formatting and pins it with a regression; it
+does not alter routing semantics, authority or budgets.
+
+See [Workflow 45](workflows/WORKFLOW-045.md).
+
+**Next:** review the next design separately before Workflow 46. One candidate
+is to narrow offered repair files to an already-established
+`required_domain`, analogous to insufficient-test-count narrowing. That would
+remove a controller-disallowed choice rather than grant new edit authority,
+but it is a behavioral change and should not be smuggled into this
+documentation/formatting follow-up.
 
 ## Current update: Workflow 44 explicit-contract repair-domain enforcement
 

@@ -488,7 +488,44 @@ Unchanged:
 - 2000-byte controller limit;
 - verification, behavioral-delta and publication gates.
 
-**Next live proof:** Workflow 45 reruns the same Initials task. The controller
-should persist `required_domain: production`. A model `test` reply must fail
-before repair editing; a model `production` reply may proceed, at which point
-the production repair-context size can finally be measured honestly.
+**Workflow 45 live proof: completed.** See
+[Workflow 45](../workflows/WORKFLOW-045.md). The controller persisted
+`required_domain: production` with the exact expected/actual evidence. The
+model nevertheless replied `fault_domain: test` targeting the selected test
+file. The existing validator rejected the route before repair editing with
+`requires fault_domain 'production'`.
+
+That run closes the narrow live proof introduced by Workflow 44: an
+independently established explicit-contract domain can reject a typed
+domain/file pair that would otherwise be internally consistent.
+
+It does **not** close §14 step 3. The workflow never entered a production repair
+because the model did not choose `production`, so production repair-context
+size and end-to-end production repair remain outstanding.
+
+## 17. Workflow 45 validation record
+
+Workflow 45 establishes the following live properties:
+
+- exact expected/actual extraction worked on the real Gradle/JUnit diagnostic;
+- exact task-literal matching selected `production` and did not fall into the
+  `H.J.2` / `H.J.2.` substring trap;
+- `required_domain_evidence` was persisted before validation;
+- the model's free-text `reason` remained non-semantic;
+- a conflicting typed `test` route was preserved in evidence and rejected;
+- no route was auto-corrected;
+- no second routing call occurred;
+- no repair-edit prompt was built;
+- no wrong-target repair-context overflow occurred;
+- selected-file authority and all existing budgets remained unchanged.
+
+The routing prompt also exposed a formatting-only bug: the required-domain line
+was followed by the literal characters `\\n` before `Task:`. Deterministic
+enforcement was unaffected. The follow-up after Workflow 45 replaces that
+literal sequence with a real newline and pins the formatting with a regression.
+
+The next architectural question is separate from this milestone proof: whether
+a controller-established `required_domain` should also narrow the candidates
+shown to the routing model. That could make a future Workflow 46 reach the
+production repair path, but it is a behavioral change and should be reviewed
+independently rather than folded into this documentation/formatting cleanup.

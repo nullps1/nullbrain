@@ -1,5 +1,32 @@
 # Changelog
 
+### Workflow 45 live validation and routing-prompt newline cleanup — 2026-09-26
+
+- Record [Workflow 45](workflows/WORKFLOW-045.md): selection inference 159 and
+  planning inference 160 passed; the workflow proceeded through editing,
+  compilation, testing and repair diagnosis. Attempt 3's latest recorded
+  inference job was 162 and repair-routing inference was 163.
+- Candidate verification again observed `expected: <H.J.2.> but was: <H.J.2>`.
+  The controller independently derived `required_domain: production` from the
+  exact task literal and JUnit assertion pair and persisted the full
+  `required_domain_evidence`.
+- The model still returned a typed `test` route to `InitialsTest.java`.
+  Unlike Workflows 42 and 44, the route was rejected immediately with
+  `requires fault_domain 'production'`; `accepted` remained false and no
+  repair-edit prompt was built.
+- This is the first live validation of the explicit-contract
+  `required_domain` enforcement merged in PR #16. It closes the repeated
+  typed-but-semantically-wrong routing failure for this narrow evidence class.
+- Workflow 45 did not enter the previous 2324/2000 wrong-test-target repair
+  context. A correctly routed production repair-context size remains
+  unmeasured.
+- Fix a formatting-only defect discovered in the live prompt: replace the
+  literal `\\n` after the controller-required domain with a real newline and
+  add a regression that rejects `\\nTask:` while requiring the real line
+  break. Routing semantics, authority and budgets are unchanged.
+- Defer any domain-based candidate narrowing to a separate reviewed change
+  before Workflow 46.
+
 ### Workflow 44 explicit-contract repair-domain enforcement — 2026-09-26
 
 - Record [Workflow 44](workflows/WORKFLOW-044.md): selection inference 154 and

@@ -24,7 +24,7 @@ from nullcode.repo.repo_plan_workflow import (
     validate_plan,
 )
 from nullcode.repo.repo_workflow import git
-from nullcode.core.review_java import review_source
+from nullcode.core.review_java import code_only, review_source
 
 
 PROFILE = "repo-execute-v1"
@@ -256,9 +256,18 @@ def related_context(checkout, target, selected, tests):
 PRESERVE_TESTS = "Keep every existing @Test method; add new ones alongside them.\n"
 
 
-def edit_prompt(task, plan, target, source, related=""):
+def assemble_edit_prompt(task, plan, target, source, related):
+    """Exact byte structure of an edit prompt, apart from `related` itself.
+
+    edit_prompt() and edit_reference_budget() both build from this - the
+    first with real production reference text, the second with an empty one
+    - so the difference between the two byte counts is exactly the room left
+    for reference context. Encoding a string concatenation always yields the
+    concatenation of the parts' own encodings, so that difference is exact,
+    not an estimate.
+    """
     name = pathlib.PurePosixPath(target).name
-    prompt = (
+    return (
         f"Return ONLY complete {name}, no fences/prose or other files. "
         "Follow TASK; preserve behavior/API except requested additions.\n"
         + (PRESERVE_TESTS if target.startswith("src/test/java/") else "")
@@ -266,9 +275,320 @@ def edit_prompt(task, plan, target, source, related=""):
         + f"REFERENCE ONLY:\n{related}\n"
         + f"TARGET {target}:\n{compact_prompt_java(source)}\n"
     )
-    if len(prompt.encode("utf-8")) > 2000:
-        raise ValueError("Complete edit context exceeds 2000 bytes; nothing truncated")
+
+
+EDIT_CONTEXT_LIMIT = 2000
+
+
+def edit_prompt(task, plan, target, source, related=""):
+    prompt = assemble_edit_prompt(task, plan, target, source, related)
+    size = len(prompt.encode("utf-8"))
+    if size > EDIT_CONTEXT_LIMIT:
+        raise ValueError(
+            f"Complete edit context for {target} needs {size}/"
+            f"{EDIT_CONTEXT_LIMIT} bytes; nothing truncated"
+        )
     return prompt
+
+
+def edit_reference_budget(task, plan, target, source, limit=EDIT_CONTEXT_LIMIT):
+    """What an edit prompt for `target` spends before production reference
+    context, and what is left over for that context.
+
+    Every quantity the context-budgeting design calls for is explicit here
+    instead of scattered arithmetic: the controller limit, the task and plan
+    contribution, the target file's own size, the complete fixed overhead
+    (boilerplate plus task/plan plus target - everything an edit prompt needs
+    besides production reference content), and the resulting reference
+    budget. A negative reference budget means the task, plan and target alone
+    already exceed the controller limit; no production reference content can
+    fix that, and callers should expect select_edit_reference_context() to
+    fail closed.
+    """
+    fixed_overhead_bytes = len(
+        assemble_edit_prompt(task, plan, target, source, "").encode("utf-8")
+    )
+
+    return {
+        "limit": limit,
+        "task_bytes": len(str(task).encode("utf-8")),
+        "plan_bytes": len(target_plan(plan, target).encode("utf-8")),
+        "target_bytes": len(compact_prompt_java(source).encode("utf-8")),
+        "fixed_overhead_bytes": fixed_overhead_bytes,
+        "reference_budget_bytes": limit - fixed_overhead_bytes,
+    }
+
+
+# ---------------------------------------------------------------------------
+# Bounded structural production reference (Milestone 7B.3)
+# ---------------------------------------------------------------------------
+# related_context() above is the right reference context whenever it fits:
+# every selected production file, complete. What it cannot handle alone is
+# growth - a production candidate this run just edited can be larger than its
+# committed base version, and the test-edit prompt built immediately
+# afterwards has no way to know that in advance. Workflow 46 hit exactly
+# this: the committed Initials.java fit; the edited candidate the model
+# returned for it did not, and the InitialsTest.java edit prompt that
+# included it whole exceeded the controller limit before that second prompt
+# artifact could even be written.
+#
+# select_edit_reference_context() below tries related_context()'s existing
+# whole-file behavior first and only reduces context when that does not fit.
+# Reduction never byte-slices Java source: it splits a production file into
+# complete top-level members (fields, constructors, methods, nested types)
+# using brace-depth accounting over review_java.code_only()'s comment/string-
+# masked view of the source, so a brace or semicolon inside a string or
+# comment is never mistaken for a structural boundary. Only a selected
+# production file this run actually edited relative to base_commit is
+# reduced; a selected production file that still matches its base_commit
+# content is not the cause of any growth and is kept complete. When even the
+# minimum structurally complete form (the type's signature and closing brace,
+# with every member noted as omitted) does not fit its share of the budget,
+# this fails closed with a diagnostic naming the target, the budget and the
+# file that would not fit - never a truncated prompt sent to inference.
+
+
+def java_type_skeleton(source):
+    """Split one Java source file into (header, members, footer).
+
+    `header` runs from the start of the file through the primary type's
+    opening `{`; `footer` is that type's closing `}` and anything after it;
+    `members` is the ordered list of complete top-level fields, constructors,
+    methods and nested types in between, each a brace-balanced (or, for a
+    field, semicolon-terminated) unit of the original source text verbatim -
+    comments and annotations included. Concatenating header, every member in
+    order, and footer reproduces the original source exactly.
+
+    This is brace counting over review_java.code_only()'s masked view (which
+    blanks string/char literals and comments while preserving length and
+    newlines), not a Java parser. It is only ever asked to split the small,
+    single-top-level-type files this profile already restricts editable
+    scope to. Returns None when the source contains a text block (code_only
+    does not mask a `\"\"\"..\"\"\"` block, so brace-counting inside one would
+    be unsafe) or has no recognizable top-level type; callers treat None as
+    "do not reduce this file."
+    """
+    if '"""' in source:
+        return None
+
+    masked = code_only(source)
+    open_index = masked.find("{")
+
+    if open_index == -1:
+        return None
+
+    header = source[:open_index + 1]
+    members = []
+    depth = 1
+    start = open_index + 1
+    index = start
+    length = len(masked)
+    close_index = None
+
+    while index < length:
+        char = masked[index]
+
+        if char == "{":
+            depth += 1
+        elif char == "}":
+            depth -= 1
+            if depth == 0:
+                close_index = index
+                break
+            if depth == 1:
+                members.append(source[start:index + 1])
+                start = index + 1
+        elif char == ";" and depth == 1:
+            members.append(source[start:index + 1])
+            start = index + 1
+
+        index += 1
+
+    if close_index is None:
+        return None
+
+    footer = source[start:]
+    members = [member for member in members if member.strip()]
+
+    return header, members, footer
+
+
+OMITTED_MEMBERS_NOTE = "\n// ... other members omitted for prompt context budget ...\n"
+
+
+def select_java_members(current, base_source, budget):
+    """The largest structurally complete subset of `current`'s members that
+    fits in `budget` bytes, preferring members `base_source` does not already
+    contain (added or changed) over members it does.
+
+    Returns (text, complete): `text` is header + chosen members in their
+    original order + (an omission note, when something was dropped) + footer,
+    compacted the same way related_context() compacts a whole file; `complete`
+    says whether every member was kept. Returns (None, False) when `current`
+    cannot be split at all, or when even header + footer does not fit.
+    """
+    skeleton = java_type_skeleton(current)
+
+    if skeleton is None:
+        return None, False
+
+    header, members, footer = skeleton
+
+    base_members = set()
+
+    if base_source is not None:
+        base_skeleton = java_type_skeleton(base_source)
+        if base_skeleton is not None:
+            base_members = {member.strip() for member in base_skeleton[1]}
+
+    priority = sorted(
+        range(len(members)),
+        key=lambda i: 0 if members[i].strip() not in base_members else 1,
+    )
+
+    base_bytes = len(header.encode("utf-8")) + len(footer.encode("utf-8"))
+
+    if base_bytes > budget:
+        return None, False
+
+    chosen = [False] * len(members)
+    used = base_bytes
+
+    for i in priority:
+        cost = len(members[i].encode("utf-8"))
+        if used + cost <= budget:
+            chosen[i] = True
+            used += cost
+
+    complete = all(chosen)
+    note = OMITTED_MEMBERS_NOTE if not complete else ""
+
+    if note and used + len(note.encode("utf-8")) > budget:
+        note = ""
+
+    body = "".join(member for i, member in enumerate(members) if chosen[i])
+
+    return compact_prompt_java(header + body + note + footer), complete
+
+
+def bounded_production_reference(checkout, base_commit, production_selected, budget):
+    """Reference text for `production_selected`, reduced only where needed.
+
+    A selected production file whose checkout content still matches its
+    base_commit content is included complete: it is not the cause of any
+    budget overflow, so there is nothing to gain and real reference quality
+    to lose by shrinking it. Only a file this run actually edited is reduced,
+    through select_java_members() above, sharing whatever budget the
+    unedited files leave behind evenly across the remaining edited files.
+
+    Returns (joined_text, detail) where `detail` records, per file, whether
+    it was reduced and how many bytes it used; when a file cannot fit even
+    its reduced minimum, returns (None, detail) with detail identifying which
+    file failed. `detail` never carries source content, only file names,
+    booleans and byte counts, so it is safe to persist as diagnostic evidence.
+    """
+    if not production_selected:
+        return "", {}
+
+    detail = {}
+    entries = {}
+    edited = []
+
+    for name in production_selected:
+        current = (checkout / name).read_text(encoding="utf-8")
+        base_source = git(checkout, "show", base_commit + ":" + name, raw=True)
+
+        if current == base_source:
+            entry = name + ":\n" + compact_prompt_java(current)
+            entries[name] = entry
+            detail[name] = {
+                "reduced": False,
+                "included_bytes": len(entry.encode("utf-8")),
+            }
+        else:
+            edited.append((name, current, base_source))
+
+    separator_bytes = max(len(production_selected) - 1, 0)
+    remaining = budget - separator_bytes - sum(
+        len(entry.encode("utf-8")) for entry in entries.values()
+    )
+
+    for position, (name, current, base_source) in enumerate(edited):
+        share = max(remaining, 0) // (len(edited) - position)
+        prefix = name + ":\n"
+        member_budget = share - len(prefix.encode("utf-8"))
+
+        text, complete = select_java_members(
+            current, base_source, max(member_budget, 0)
+        )
+
+        if text is None:
+            detail[name] = {
+                "reduced": True,
+                "fit": False,
+                "attempted_budget": max(member_budget, 0),
+            }
+            return None, detail
+
+        entry = prefix + text
+        entries[name] = entry
+        detail[name] = {
+            "reduced": True,
+            "fit": True,
+            "complete": complete,
+            "included_bytes": len(entry.encode("utf-8")),
+        }
+        remaining -= len(entry.encode("utf-8"))
+
+    return "\n".join(entries[name] for name in production_selected), detail
+
+
+def select_edit_reference_context(checkout, target, selected, tests, base_commit, budget):
+    """Reference context for an edit_prompt() call, sized to `budget` bytes.
+
+    Tries related_context()'s existing whole-file behavior first and returns
+    it unchanged whenever it already fits - the common case, and its output
+    is byte-identical to related_context() alone. Only when the whole-file
+    context does not fit does it fall back to bounded_production_reference()'s
+    structural reduction. Raises ValueError with target/limit/byte
+    diagnostics, and never a truncated string, when even that minimum cannot
+    fit.
+    """
+    if target not in tests:
+        return "", {"strategy": "not-applicable"}
+
+    whole = related_context(checkout, target, selected, tests)
+    whole_bytes = len(whole.encode("utf-8"))
+
+    if whole_bytes <= budget:
+        return whole, {
+            "strategy": "whole-file",
+            "reference_budget_bytes": budget,
+            "whole_file_bytes": whole_bytes,
+        }
+
+    production_selected = [name for name in selected if name not in tests]
+    reduced, detail = bounded_production_reference(
+        checkout, base_commit, production_selected, budget,
+    )
+
+    if reduced is None:
+        raise ValueError(
+            f"Could not build a structurally safe production reference for "
+            f"{target} within the {EDIT_CONTEXT_LIMIT}-byte controller limit: "
+            f"reference budget is {budget} bytes, whole selected production "
+            f"context needs {whole_bytes} bytes, and no smaller structurally "
+            "complete member extract fits within budget either. Attempted "
+            "strategy: structural-member-selection. Detail: "
+            + json.dumps(detail, sort_keys=True)
+        )
+
+    return reduced, {
+        "strategy": "structural-member-selection",
+        "reference_budget_bytes": budget,
+        "whole_file_bytes": whole_bytes,
+        "files": detail,
+    }
 
 
 def repair_edit_prompt(task, plan, target, source, diagnostic, repair_reason, related=""):
@@ -1778,22 +2098,58 @@ def run_job(store, job, generate_fn=generate, verify_fn=verify_gradle, artifacts
 
                 source = path.read_text(encoding="utf-8")
 
-                related = related_context(
-                    checkout,
-                    name,
-                    selected,
-                    tests,
-                )
-
-                prompt = edit_prompt(
-                    spec["task"],
-                    plan,
-                    name,
-                    source,
-                    related,
-                )
-
                 stem = f"{index}-{pathlib.PurePosixPath(name).name}"
+
+                reference_budget = edit_reference_budget(
+                    spec["task"], plan, name, source,
+                )["reference_budget_bytes"]
+
+                try:
+                    related, context_detail = select_edit_reference_context(
+                        checkout,
+                        name,
+                        selected,
+                        tests,
+                        spec["base_commit"],
+                        reference_budget,
+                    )
+
+                    if context_detail.get("strategy") == "structural-member-selection":
+                        (attempt / f"{stem}.context-strategy.json").write_text(
+                            json.dumps(context_detail, indent=2),
+                            encoding="utf-8",
+                        )
+
+                    prompt = edit_prompt(
+                        spec["task"],
+                        plan,
+                        name,
+                        source,
+                        related,
+                    )
+                except ValueError as error:
+                    # Covers both select_edit_reference_context()'s own
+                    # fail-closed diagnosis and edit_prompt()'s final backstop
+                    # (reached only when reduction could not help - e.g. an
+                    # over-budget selection made entirely of files this run
+                    # never edited, which reduction correctly leaves whole).
+                    # Either way, this is the one place a context-budget
+                    # failure for `name` is diagnosed, so it is the one place
+                    # that evidence is persisted.
+                    (attempt / f"{stem}.context-budget.json").write_text(
+                        json.dumps(
+                            {
+                                "target": name,
+                                "selected_files": selected,
+                                "controller_limit": EDIT_CONTEXT_LIMIT,
+                                "reference_budget_bytes": reference_budget,
+                                "error": str(error),
+                            },
+                            indent=2,
+                        ),
+                        encoding="utf-8",
+                    )
+                    raise
 
                 (attempt / f"{stem}.prompt.txt").write_text(
                     prompt,

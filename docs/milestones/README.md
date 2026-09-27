@@ -18,6 +18,7 @@ historical record.
 | [MILESTONE-7B-1.md](MILESTONE-7B-1.md) | Behavioral-delta evidence hardening |
 | [MILESTONE-7B-2.md](MILESTONE-7B-2.md) | Typed repair-target routing |
 | [MILESTONE-7C-1.md](MILESTONE-7C-1.md) | Model-proposed scope, human-granted scope |
+| [MILESTONE-7B-3.md](MILESTONE-7B-3.md) | Bounded structural edit-context budgeting |
 | [ACCEPTED-JAVA-V1.md](ACCEPTED-JAVA-V1.md) | Acceptance-gated one-file production workflow |
 | [JAVAC-REPAIR-RULE.md](JAVAC-REPAIR-RULE.md) | Narrow javac `String[]#stream()` repair guidance |
 

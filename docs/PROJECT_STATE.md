@@ -1,9 +1,11 @@
 # NullCode project state
 
-**Updated:** 2026-09-26, with Milestone 7C-1 merged and live Pi validation
-through Workflow 45. Workflow 46 preparation now narrows repair candidates to
-an already-established controller-required domain.
-**Base main before this follow-up:** `8c34d24` (merge of PR #17, Workflow 45 documentation and prompt-newline cleanup).
+**Updated:** 2026-09-27, with Workflow 46's edit-context-budget failure fixed
+by Milestone 7B.3 (bounded structural edit-context budgeting). Workflow 46
+itself remains historical failure evidence; a fresh workflow ID is still
+needed to validate the fix at runtime.
+**Base main before this follow-up:** `2d8271b` (merge of PR #18, layered
+repair candidate narrowing).
 **Key implementation commits:** `34fc203` (7C-2 publisher), `53e09bb` / `6c78080`
 (7C-2 hardening/docs), `88c015b` (insufficient-test-count repair), `a48d419`
 (behavioral-delta gate), `3c7e724` (7B.1 evidence hardening + semantic
@@ -20,7 +22,83 @@ historical unless a later section repeats them. Sections 1–9 retain the
 refactor-era snapshot, refreshed where marked. Sections 10 and 11 are current
 rules.
 
-## Current update: Workflow 46 preparation — required-domain candidate narrowing
+## Current update: Milestone 7B.3 — bounded structural edit-context budgeting
+
+[Workflow 46](workflows/WORKFLOW-046.md) reran the Initials task after the
+required-domain candidate-narrowing preparation below. Selection, planning
+and the production edit all succeeded; the workflow then failed building the
+`InitialsTest.java` edit prompt with the generic
+`Complete edit context exceeds 2000 bytes; nothing truncated`, before that
+second prompt's artifact was ever written. Candidate verification, repair and
+behavioral-delta were never reached.
+
+Root cause: test-file edit prompts included every selected production file
+**complete** as reference context, with no bound on how large a production
+candidate this same run just edited can grow. Workflow 40 hit the identical
+generic error once already and was "fixed" only by shaving nine redundant
+bytes off prompt boilerplate ([WORKFLOW-040.md](workflows/WORKFLOW-040.md));
+that was never structural, and Workflow 46 is exactly that regression -  a
+candidate a little larger than the Workflow 40 fixture reopened the same
+failure.
+
+[Milestone 7B.3](milestones/MILESTONE-7B-3.md) replaces the whole-file-or-fail
+choice with a bounded, structurally safe strategy in the Stage 3 edit loop
+only:
+
+- the existing whole-file reference context is used unchanged whenever it
+  fits (byte-identical to before this change);
+- otherwise, a selected production file this run left untouched relative to
+  `base_commit` is still included complete, and only a file this run actually
+  edited is reduced to complete top-level Java members (never a byte-sliced
+  fragment), preferring members that differ from the base version;
+- a new `edit_reference_budget()` helper is the single place that turns the
+  2000-byte controller limit, minus fixed prompt overhead, task, plan and
+  target-file bytes, into the bytes actually available for production
+  reference context - shared with `edit_prompt()` itself so the number a
+  prompt is built against and the number its diagnostics report cannot drift
+  apart;
+- when even the minimum structurally complete context cannot fit, the
+  workflow fails deterministically with a diagnostic naming the target file,
+  the controller limit and the bytes involved, persisted as a
+  `<file>.context-budget.json` artifact before re-raising.
+
+This is intentionally narrow:
+
+- the 2000-byte controller limit is unchanged and never bypassed;
+- the complete target file is always available to the edit model; only
+  **reference** context for other selected files is ever reduced;
+- no Java reference source is ever byte-sliced mid-method or mid-expression;
+- selected-file scope, verification, the baseline regression, the
+  added-coverage comparison, the behavioral-delta counterfactual, repair and
+  the semantic re-plan budget are all unchanged;
+- the repair stage's own `related_context()` / `repair_edit_prompt()` call is
+  deliberately **not** touched - `test_repair_routing.py`'s pinned
+  2-production-file repair-context overflow keeps failing closed exactly as
+  it did before, because that scenario is a genuine over-budget selection,
+  not the growth failure Workflow 46 hit at the initial edit stage.
+
+Regression coverage (`tests/test_edit_context_budget.py`, 9 tests) reproduces
+the Workflow 46 growth shape through the real `run_job` edit loop end to end
+(reaching `succeeded`), proves the minimum-context-cannot-fit failure path
+produces the documented diagnostic and artifact evidence, proves the
+structural splitter round-trips exactly and never returns a partial member
+(including against braces/semicolons inside strings and comments, and a Java
+text block it refuses to split), and confirms the whole-file path is
+untouched when it already fits. The complete suite (338 tests) passes,
+including the Workflow-40 regression and the deliberately-pinned over-budget
+fail-closed cases in `test_patient_zero_compat.py` and
+`test_repair_routing.py`.
+
+**Next live proof:** Workflow 46 remains preserved as historical failure
+evidence and is not rerun or modified. After this patch is reviewed, merged,
+pulled and the worker restarted, a **new** workflow ID should rerun the same
+Initials task. The primary evidence to look for is a
+`2-InitialsTest.java.prompt.txt` artifact existing and the workflow reaching
+candidate verification - at which point the pipeline gets its first live
+opportunity to evaluate the `H.J.2` vs `H.J.2.` semantic defect every prior
+Initials-task run has produced, independent of this fix.
+
+## Earlier update: Workflow 46 preparation — required-domain candidate narrowing
 
 Workflow 45 live-proved that the controller can independently establish
 `required_domain: production` from the explicit Initials task and JUnit

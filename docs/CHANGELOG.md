@@ -1,5 +1,71 @@
 # Changelog
 
+### Milestone 7B.3: bounded structural edit-context budgeting — 2026-09-27
+
+- Record [Workflow 46](workflows/WORKFLOW-046.md): selection and planning
+  passed, the production edit for `Initials.java` succeeded (a semantically
+  imperfect `H.J.2` instead of `H.J.2.`, never reached by verification), and
+  the workflow then failed while preparing the `InitialsTest.java` edit
+  prompt with `Complete edit context exceeds 2000 bytes; nothing truncated`
+  before that second prompt artifact was ever written.
+- Root cause: test-file edit prompts included every selected production file
+  **complete** as reference context, with no bound against how large a
+  production candidate this same run just edited can be. Workflow 40's
+  earlier "fix" for the identical generic error only shaved fixed bytes off
+  prompt boilerplate ([WORKFLOW-040.md](workflows/WORKFLOW-040.md)); it was
+  never structural, and a candidate a little larger than that fixture reopens
+  the same failure, as Workflow 46 shows.
+- Add bounded, structurally safe production-reference selection to the Stage
+  3 edit loop in `repo-execute-v1` ([MILESTONE-7B-3.md](milestones/MILESTONE-7B-3.md)):
+  `select_edit_reference_context()` keeps the existing whole-file behavior
+  whenever it fits (byte-identical to before), and falls back to
+  `bounded_production_reference()` / `select_java_members()` only when it
+  does not - reducing only production files this run actually edited,
+  through complete top-level Java members (never a byte-sliced fragment),
+  prioritizing members that differ from the committed base over unchanged
+  ones. A selected production file left byte-identical to base is always
+  included complete.
+- Add `edit_reference_budget()` as the single, explicit accounting helper for
+  the edit-prompt controller limit, fixed overhead, task/plan/target
+  contribution and the resulting production-reference budget, shared by
+  `edit_prompt()` itself so the budget a prompt is checked against and the
+  budget its diagnostics report can never drift apart.
+- When even the minimum structurally complete context cannot fit, fail
+  deterministically with a diagnostic naming the target file, the controller
+  limit and the byte counts involved (never raw source content), and persist
+  it as a `<file>.context-budget.json` artifact before re-raising - so a
+  context-budget failure now leaves evidence naming what was tried, unlike
+  Workflow 46's silent gap. A successful reduction is recorded in a
+  `<file>.context-strategy.json` artifact.
+- The 2000-byte controller limit is unchanged and is not bypassed; the
+  complete target file is always available to the edit model; no Java
+  reference source is ever byte-sliced mid-method or mid-expression;
+  selected-file scope, verification, behavioral-delta and repair/semantic-
+  replan boundaries are all unchanged. The repair stage's own
+  `related_context()` / `repair_edit_prompt()` call is intentionally **not**
+  touched by this milestone - `test_repair_routing.py`'s deliberately-pinned
+  2-production-file repair-context overflow keeps failing closed exactly as
+  before.
+- Add `tests/test_edit_context_budget.py`: a Workflow-46-shaped growth
+  scenario exercised through the real `run_job` edit loop (production edit
+  followed by a successful test-edit prompt and a `succeeded` run), a
+  minimum-context-cannot-fit failure-path test asserting the diagnostic and
+  artifact evidence above, structural-safety tests proving
+  `java_type_skeleton()` round-trips exactly, is not confused by braces or
+  semicolons inside strings/comments, never includes a partial member, and
+  refuses to split a file containing a Java text block, and a regression
+  confirming the whole-file strategy is byte-identical to the pre-existing
+  `related_context()` whenever it already fits.
+- Validation: the new focused suite (9 tests) and the complete existing suite
+  (338 tests total) both pass, including
+  `test_workflow_40_initials_test_edit_prompt_fits_without_truncation` and
+  the deliberately-pinned over-budget fail-closed cases in
+  `test_patient_zero_compat.py` and `test_repair_routing.py`.
+- Workflow 46 itself is preserved as historical failure evidence and is not
+  modified, rerun or reused by this patch. A **new** workflow ID must be run
+  after deployment to validate the fix at runtime; see
+  [MILESTONE-7B-3.md §9](milestones/MILESTONE-7B-3.md#9-runtime-validation).
+
 ### Workflow 46 preparation: required-domain candidate narrowing — 2026-09-26
 
 - Follow Workflow 45's live validation by removing repair candidates outside an

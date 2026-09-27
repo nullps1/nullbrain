@@ -836,6 +836,34 @@ def repair_route_domains(candidates, production, tests):
     }
 
 
+def narrow_repair_candidates(candidates, production, tests, required_domain):
+    """Remove candidates outside an independently required fault domain.
+
+    A required domain is controller evidence, not a model preference. Narrowing
+    can only remove already-selected candidates; it never adds edit authority.
+    If the required domain has no offered candidate, fail closed before asking
+    the model to route an impossible repair.
+    """
+    candidates = list(candidates)
+
+    if required_domain is None:
+        return candidates
+
+    if required_domain not in FAULT_DOMAINS:
+        raise ValueError(
+            f"Invalid controller-required fault_domain: {required_domain}"
+        )
+
+    narrowed = repair_route_domains(candidates, production, tests)[required_domain]
+
+    if not narrowed:
+        raise ValueError(
+            f"Required repair domain '{required_domain}' has no selected candidate"
+        )
+
+    return narrowed
+
+
 def repair_selection_prompt(task, plan, candidates, diagnostic, production, tests,
                             required_domain=None):
     # The model still chooses a typed route. When deterministic evidence has
@@ -1949,6 +1977,13 @@ def run_job(store, job, generate_fn=generate, verify_fn=verify_gradle, artifacts
                         spec["task"],
                         diagnostic,
                     )
+
+                repair_candidates = narrow_repair_candidates(
+                    repair_candidates,
+                    production,
+                    tests,
+                    required_domain,
+                )
 
                 prompt = repair_selection_prompt(
                     spec["task"],
